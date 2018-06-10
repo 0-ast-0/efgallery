@@ -27,7 +27,7 @@ The resulting gallery can be uploaded anywhere without additional requirements a
 JavaScript is required to view the gallery.
 The gallery will feature a large area for viewing a single image, and a scrollable horizontal or vertical bar with thumbnails.
 The orientation of the thumbnail bar will be automatically chosen based on the size of the browser window.
-The user can click on arrows to go to the next or previous image or use the arrow keys on the keyboard to do the same.
+The user can click on a picture to start a slide show there or use the arrow keys on the keyboard to move forward and back.
 The user can also click on the thumbnails to quickly go to another image.
 Each image has a unique anchor tag, and the user can copy&paste the URL from the address bar of the browser which will point to the currently displayed image.
 Clicking on the previewed image will display the original at full resolution, unless th
@@ -141,11 +141,10 @@ A description of your gallery, for social media.
 .It Fl -url Ar URL
 The URL where you will install the gallery, for social media.
 .It Fl -link-orig[=TYPE]
-Change the method used to copy the original images.  If this option is
-not given, the method defaults to "copy".  If the type is not specified
-it sets the method to "hard".  Otherwise the type must be one of "copy",
-"hard", "soft" or "ref" - for normal copy, hard-linking, soft-linking or
-ref-linking respectively.
+Change the method used to copy the original images.  If this option
+is not given, the method defaults to "copy".  Otherwise the type
+must be one of "copy", "hard", "soft" or "ref" - for normal copy,
+hard-linking, soft-linking or ref-linking (on Linux) respectively.
 .El
 .Ss Social Media
 Linking to your gallery on social media will not produce a nice

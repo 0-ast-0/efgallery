@@ -1,4 +1,4 @@
-# efgallery: a minimalist javascript photo gallery
+# efgallery: a straightforward photo gallery generator
 
 *efgallery* is a static photo gallery generator written in Perl
 with a minimalist look and feel. It shows your photos (and optionally
