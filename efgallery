@@ -14,7 +14,7 @@ use v5.14;
 use strict;
 use warnings;
 
-our $VERSION = "2.3";
+our $VERSION = "2.4";
 
 use locale;
 use utf8;
@@ -94,8 +94,12 @@ my %copy_method = (
   hard => '--link',
   sym  => '--symbolic-link',
 );
-$copy_method{ref} = '--reflink' unless $^O =~ m{bsd$}oi;
 my $copy_method = 'copy';
+if ($^O =~ m{bsd$}oi) {
+  $copy_method = 'sym';
+} else {
+  $copy_method{ref} = '--reflink';
+}
 my $fdownload = catfile(qw{files album.zip});
 my $alg = 'sha256';
 my $sha = Digest::SHA->new($alg);
