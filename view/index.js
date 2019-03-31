@@ -594,7 +594,7 @@ function onMainReady()
 
   tthr = resetTimeout(tthr);
   idle.start();
-  if(slideshow != 'on') showHdr();
+  if(slideshow == 'on') hideHdr(); else showHdr();
   centerThumb(d);
 
   // prefetch next image
