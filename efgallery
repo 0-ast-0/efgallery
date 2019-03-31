@@ -1024,16 +1024,23 @@ $html .= qq{\t<p itemprop="description">$galleryDescription</p>\n}
     if $galleryDescription;
 $html .= qq{\t<div id="wrapper">};
 # enumerate the images for noscript
-my $id = -1;
+my $id = 0;
 $adata = read_json($json_file);
 for (@{$adata->{data}}) {
-  my $c = (splitpath($_->{img}[0]))[2];
-  $c = $_->{caption} if exists $_->{caption};
   my $f = $_->{img}[0];
   my $t = $_->{thumb}[0];
+  # find caption and description for alt and title
+  my ($x, $y);
+  if ((exists $_->{caption}) && (ref $_->{caption} eq 'ARRAY')) {
+      my $c = $_->{caption};
+      $x = $_->{caption}->[0] if @$c >= 1;
+      $y = $_->{caption}->[1] if @$c >= 2;
+  }
+  $x = (splitpath($f))[2] unless $x;
+  $y = $x unless $y;
+  $html .= qq{\n\t  <a id="$id" href="$f" title="$y">}
+         . qq{<img src="$t" alt="$x"/></a>};
   $id++;
-  $html .= qq{\n\t  <a id="$id" href="$f" title="$c">}
-         . qq{<img src="$t" alt="$c"/></a>};
 }
 $html .= qq{\n\t</div>\n};
 $html .= qq{    </div>\n};
