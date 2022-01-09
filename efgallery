@@ -72,9 +72,9 @@ my $fullpano = 1;
 my $offerzip = 1;
 my $panort = 2.;
 my $facedetect = 0;
-my $use_orig = 0;
-my $jpegoptim = 1;
-my $pngoptim = 1;
+my $optimize = 1;
+my $optimize_jpg = 1;
+my $optimize_png = 1;
 my $p7zip = 1;
 my $verbose = 0;
 my $workers = 0;
@@ -443,7 +443,7 @@ sub print_help
   -i                    include individual original image files
   -c "METHODS"          caption extraction methods (txt,xmp,exif,cmt,none)
   -o                    do not auto-orient images
-  -k                    do not modify files, keep original image files
+  -k                    use original images (do not pngcrush/jpegoptim/auto-orient)
   -t                    sort alphabetically (default is to sort chronologically)
   -r                    album images in reverse chronological order (newest first)
   -u                    add/remove images (OUTPUT_DIR optional when removing)
@@ -482,7 +482,7 @@ my ($rc, @ARGS) = GetOptions(
   'i' => sub { $include = 1; },
   'j=i' => sub { $workers = parse_int($_[0], $_[1], 1, undef); },
   'o' => sub { $orient = 0; },
-  'k' => sub { $use_orig = 1; },
+  'k' => sub { $optimize = 0; },
   'n=s' => \$name,
   'p' => sub { $fullpano = 0; },
   'r' => sub { $chronological = -1; },
@@ -539,16 +539,26 @@ if ($absOut) {
 
 # check for required commands
 for (qw(cp ln mv touch)) {
-    fatal "Command '$_' missing" unless cmd_exists($_);
+  fatal "Command '$_' missing" unless cmd_exists($_);
 }
 fatal 'Missing convert executable (from ImageMagick)'
   unless cmd_exists('convert');
-unless(cmd_exists('7za')) {
-  $p7zip = 0;
-  cmd_exists('zip') || fatal 'Missing 7z or zip command';
+if ($offerzip) {
+  if (!cmd_exists('7za')) {
+    $p7zip = 0;
+    cmd_exists('zip') || fatal "Missing '7z' or 'zip' command; try -d option"
+  }
 }
-$jpegoptim = 0 unless cmd_exists('jpegoptim');
-$pngoptim = 0 unless cmd_exists('pngcrush');
+if (!cmd_exists('jpegoptim')) {
+  $optimize_jpg = 0;
+  warn "Command jpegoptim missing - will not optimze JPEG images (see also -k option)\n"
+    if $verbose;
+}
+if (!cmd_exists('pngcrush')) {
+  $optimize_png = 0;
+  warn "Command pngcrush missing - will not optimze PNG images (see also -k option)\n"
+    if $verbose;
+}
 fatal "Missing facedetect (see $facedetect_url); cannot use -f option"
   if $facedetect && !cmd_exists('facedetect');
 fatal 'Missing tificc executable (from lcms2 library); try --no-sRGB option'
@@ -562,6 +572,14 @@ while($orient)
   $exiftrancmd = "exifautotran" if cmd_exists('exifautotran');
   fatal 'Missing exiftran or exifautotran executable for JPEG autorotation; try -o option'
     unless $exiftrancmd;
+}
+
+$zipfile = catfile($absOut, $fdownload);
+if ($updating && $offerzip) {
+  if (! -f $zipfile) {
+    warn "Original zip file '$zipfile' missing: cannot create one when updating (see -d option)\n";
+    $offerzip = 0;
+  }
 }
 
 # get a list of available files with desired extensions
@@ -801,9 +819,9 @@ sub process_img
 
   progress::status($fbase);
 
-  # copy source image, apply tranforms, set mode and file timestamp
+  # copy source image, apply optimizations unless supressed, set mode and file timestamp
   copy_source_file($file, $absFout);
-  unless ($use_orig) {
+  if ($optimize || $orient) {
     if ($orient && $props{FileType} eq "JPEG" && ($props{Orientation} // 0)) {
       sys("$exiftrancmd '$absFout' 2>/dev/null");
       if (($props{Orientation} // 0) > 4) {
@@ -811,9 +829,9 @@ sub process_img
           = ($props{ImageHeight}, $props{ImageWidth});
       }
     }
-    if ($jpegoptim && $props{FileType} eq "JPEG") {
+    if ($optimize_jpg && $props{FileType} eq "JPEG") {
       sys('jpegoptim', '-q', $absFout);
-    } elsif ($pngoptim && $props{FileType} eq "PNG") {
+    } elsif ($optimize_png && $props{FileType} eq "PNG") {
       sys('pngcrush', '-q', $absFout, $absFtmp);
       rename($absFtmp, $absFout);
     }
@@ -931,10 +949,7 @@ if (@$aprops) {
 }
 
 # create or update the album zip file
-$zipfile = catfile($absOut, $fdownload);
-if (!$offerzip) {
-  unlink $zipfile;
-} else {
+if ($offerzip) {
   if ($adata && @$adata) {
     my @f = map { catfile($absOut, $_->{file}[0]) } @$adata;
     if ($p7zip) {
@@ -945,6 +960,8 @@ if (!$offerzip) {
     }
     warn sprintf "Updated %s with %d image files\n", $zipfile, scalar @f;
   }
+} else {
+  unlink $zipfile;
 }
 if (@deleted && -f $zipfile) {
   if ($p7zip) {
@@ -992,7 +1009,7 @@ for my $fdata (@$adata) {
   }
   unless ($keep) {
     unlink($file);
-    warn "Deleted superfluous raw file '$file'\n" if $verbose > 1;
+    warn "Deleted raw file '$file' (see -i and -k options)\n" if $verbose > 1;
   }
 }
 write_json(catfile($absOut, 'data.json'), \%json, $odata->{data});
