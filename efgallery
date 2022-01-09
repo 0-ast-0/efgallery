@@ -72,7 +72,7 @@ my $imgq = 90;
 my $fullpano = 1;
 my $nodown = 0;
 my $panort = 2.;
-my $facedet = 0;
+my $facedetect = 0;
 my $use_orig = 0;
 my $jpegoptim = 1;
 my $pngoptim = 1;
@@ -480,7 +480,7 @@ my ($rc, @ARGS) = GetOptions(
   'version' => sub { print "$0 $VERSION\n"; exit 0; },
   'c=s' => sub { @captions = @{ parse_captions($_[0], $_[1]) }; },
   'd' => sub { $nodown = 1; },
-  'f' => sub { $facedet = 1; },
+  'f' => sub { $facedetect = 1; },
   'i' => sub { $include = 1; },
   'j=i' => sub { $workers = parse_int($_[0], $_[1], 1, undef); },
   'o' => sub { $orient = 0; },
@@ -553,7 +553,7 @@ unless(cmd_exists('7za')) {
 $jpegoptim = 0 unless cmd_exists('jpegoptim');
 $pngoptim = 0 unless cmd_exists('pngcrush');
 fatal "Missing facedetect (see $facedetect_url)"
-  if $facedet && !cmd_exists('facedetect');
+  if $facedetect && !cmd_exists('facedetect');
 fatal 'Missing tificc executable (from lcms2 library)'
   if $sRGB && !cmd_exists('tificc');
 my $tificccmd = 'tificc';
@@ -849,7 +849,7 @@ sub process_img
 
   # face/center detection
   my @center = (0.5, 0.5);
-  if ($facedet) {
+  if ($facedetect) {
     my @f = sys("facedetect", "--best", "--center", catfile($absOut, $fimg));
     for (@f) {
       if (my @tmp = /(\d+) (\d+) (\d+) (\d+)/) {
