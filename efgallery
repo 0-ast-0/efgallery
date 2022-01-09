@@ -549,9 +549,9 @@ unless(cmd_exists('7za')) {
 }
 $jpegoptim = 0 unless cmd_exists('jpegoptim');
 $pngoptim = 0 unless cmd_exists('pngcrush');
-fatal "Missing facedetect (see $facedetect_url)"
+fatal "Missing facedetect (see $facedetect_url); cannot use -f option"
   if $facedetect && !cmd_exists('facedetect');
-fatal 'Missing tificc executable (from lcms2 library)'
+fatal 'Missing tificc executable (from lcms2 library); try --no-sRGB option'
   if $sRGB && !cmd_exists('tificc');
 my $tificccmd = 'tificc';
 my $exiftrancmd;
@@ -560,7 +560,7 @@ while($orient)
   $exiftrancmd = "exiftran -aip" if cmd_exists('exiftran');
   last if $exiftrancmd;
   $exiftrancmd = "exifautotran" if cmd_exists('exifautotran');
-  fatal 'Missing exiftran or exifautotran executable for JPEG autorotation'
+  fatal 'Missing exiftran or exifautotran executable for JPEG autorotation; try -o option'
     unless $exiftrancmd;
 }
 
