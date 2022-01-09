@@ -938,7 +938,7 @@ $zipfile = catfile($absOut, $fdownload);
 if ($nodown || $slim) {
   unlink $zipfile;
 } else {
-  if (@$adata) {
+  if ($adata && @$adata) {
     my @f = map { catfile($absOut, $_->{file}[0]) } @$adata;
     if ($p7zip) {
       my $mt = $workers ? "-mmt=$workers" : '';
