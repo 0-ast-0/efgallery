@@ -61,8 +61,7 @@ my $filemode = oct('0644');
 my $slim = 0;
 my $include = 0;
 my $orient = 1;
-my $timesort = 1;
-my $revsort = 0;
+my $chronological = 1;
 my %filetypes = map { $_ => 1 } qw{JPEG PNG TIFF};
 my %extensions = map { $_ => 1 } qw{jpg jpeg png tif tiff};
 my $ext = "jpg";
@@ -220,7 +219,13 @@ sub write_json
   for (qw(thumb blur)) {
     $j->{$_} = $jh->{$_} if exists $jh->{$_};
   }
-  $j->{data} = [ sort { $a->{stamp} <=> $b->{stamp} } @{$jh->{data}}, @$ja ];
+  if ($chronological == 0) {
+    $j->{data} = $jh->{data};
+  } elsif ($chronological  < 0) {
+    $j->{data} = [ sort { $b->{stamp} <=> $a->{stamp} } @{$jh->{data}}, @$ja ];
+  } else {
+    $j->{data} = [ sort { $a->{stamp} <=> $b->{stamp} } @{$jh->{data}}, @$ja ];
+  }
   $j->{version} = $VERSION;
   $j->{timestamp} = time();
   $j->{timecreated} = sprintf "%s", scalar localtime $j->{timestamp};
@@ -441,8 +446,8 @@ sub print_help
   -c "METHODS"          caption extraction methods (txt,xmp,exif,cmt,none)
   -o                    do not auto-orient images
   -k                    do not modify files, keep original image files
-  -t                    do not time-sort
-  -r                    reverse album order
+  -t                    sort alphabetically (default is to sort chronologically)
+  -r                    album images in reverse chronological order (newest first)
   -u                    add/remove images (OUTPUT_DIR optional when removing)
   -p                    do not automatically include full-sized panoramas
   -n "ALBUM_NAME"       set album name (title in browser window)
@@ -482,9 +487,9 @@ my ($rc, @ARGS) = GetOptions(
   'k' => sub { $use_orig = 1; },
   'n=s' => \$name,
   'p' => sub { $fullpano = 0; },
-  'r' => sub { $revsort = 1; },
+  'r' => sub { $chronological = -1; },
   's' => sub { $slim = 1; },
-  't' => sub { $timesort = 0; },
+  't' => sub { $chronological = 0; },
   'u' => sub { $updating = 1; },
   'v' => sub { $verbose++; },
   'noblur' => sub { $do_blur = 0; },
@@ -926,12 +931,6 @@ if (@$aprops) {
   progress::done();
   warn Data::Dumper->Dump([$adata], ['$adata']), "\n"
     if $verbose > 2;
-}
-
-# sorting
-if ($timesort) {
-  $adata = [ sort { $a->{props}{stamp} <=> $b->{props}{stamp} } @$adata ];
-  $adata = [ reverse @$adata ] if $revsort;
 }
 
 # create or update the album zip file
