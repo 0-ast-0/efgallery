@@ -58,7 +58,6 @@ umask oct('0022');
 # defaults
 my $facedetect_url = 'http://www.thregr.org/~wavexx/hacks/facedetect/';
 my $filemode = oct('0644');
-my $slim = 0;
 my $include = 0;
 my $orient = 1;
 my $chronological = 1;
@@ -70,7 +69,7 @@ my @maxthumb = (267, 200);
 my @maxfull = (1600, 1200);
 my $imgq = 90;
 my $fullpano = 1;
-my $nodown = 0;
+my $offerzip = 1;
 my $panort = 2.;
 my $facedetect = 0;
 my $use_orig = 0;
@@ -441,7 +440,6 @@ sub print_help
   warn qq{Usage: $me [options] INPUT_DIR [OUTPUT_DIR]
   -h, --help            this help
   -v                    verbosity (repeat for more detail)
-  -s                    slim output (no original files nor album download)
   -i                    include individual original image files
   -c "METHODS"          caption extraction methods (txt,xmp,exif,cmt,none)
   -o                    do not auto-orient images
@@ -451,7 +449,7 @@ sub print_help
   -u                    add/remove images (OUTPUT_DIR optional when removing)
   -p                    do not automatically include full-sized panoramas
   -n "ALBUM_NAME"       set album name (title in browser window)
-  -d                    skip creation of a full album zip file for download
+  -d                    do not offer full album zip download of original files
   -f                    improve thumbnail cutting by performing face detection
   -j N                  set process-level parallelism (number of workers)
   --noblur              skip blurry backdrop generation (just dark noise)
@@ -479,7 +477,7 @@ my ($rc, @ARGS) = GetOptions(
   'help|h' => sub { print_help(0); },
   'version' => sub { print "$0 $VERSION\n"; exit 0; },
   'c=s' => sub { @captions = @{ parse_captions($_[0], $_[1]) }; },
-  'd' => sub { $nodown = 1; },
+  'd' => sub { $offerzip = 0; },
   'f' => sub { $facedetect = 1; },
   'i' => sub { $include = 1; },
   'j=i' => sub { $workers = parse_int($_[0], $_[1], 1, undef); },
@@ -488,7 +486,6 @@ my ($rc, @ARGS) = GetOptions(
   'n=s' => \$name,
   'p' => sub { $fullpano = 0; },
   'r' => sub { $chronological = -1; },
-  's' => sub { $slim = 1; },
   't' => sub { $chronological = 0; },
   'u' => sub { $updating = 1; },
   'v' => sub { $verbose++; },
@@ -935,7 +932,7 @@ if (@$aprops) {
 
 # create or update the album zip file
 $zipfile = catfile($absOut, $fdownload);
-if ($nodown || $slim) {
+if (!$offerzip) {
   unlink $zipfile;
 } else {
   if ($adata && @$adata) {
@@ -983,8 +980,8 @@ for my $fdata (@$adata) {
   push(@{$json{data}}, \%data)
     unless (exists $ofiles->{$d}) && ($ofiles->{$d} = $data{stamp});
   # remove superfluous raw files
-  my $keep = !$slim && $include;
-  unless ($slim || $keep || !$fullpano) {
+  my $keep = $include;
+  unless ($keep || !$fullpano) {
     my ($x, $y) = @{$fdata->{file}[1]};
     my $mp = ($x * $y / 1e6);
     # see if the source file is just a crop of the original
