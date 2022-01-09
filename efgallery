@@ -216,7 +216,7 @@ sub write_json
   fatal("cannot write file '$f': $!")
     unless(open($fd, ">:raw", $f));
   my $j = {};
-  for (qw(thumb blur)) {
+  for (qw(thumb blur date)) {
     $j->{$_} = $jh->{$_} if exists $jh->{$_};
   }
   if ($chronological == 0) {
