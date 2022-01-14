@@ -132,6 +132,10 @@ Do not try to remap preview and thumbnail image color profiles to sRGB.
 Set the JPEG quality of the preview images to
 .Ar Q .
 The default is 90.
+.It Fl -startslideshow
+A gallery URL will by default show the thumbnail bar at the image
+specified (or the first one if no anchor was given). By setting
+this option, the gallery slide show starts immediately instead.
 .It Fl -index Ar URL
 Specify the URL location for the index and back buttons.
 .It Fl -title Ar TITLE
@@ -155,6 +159,24 @@ a short description
 and the entry URL
 .Pq Fl -url Ns .
 The first image in the gallery will be used as the preview image.
+.Ss Slide Show Controls
+Hovering over the small question mark in the upper left next to
+image timestamp pops up a table of slide show controls for reference.
+.Pp
+The space bar or clicking on the large center image starts or stops
+the slide show. The speed can be controlled with the up arrow, 'F',
+or 'f' for "faster", whilst the down arrow, 'S', or 's' specifies
+"slower".
+.Pp
+To get back to the default speed of five seconds per image one can
+type '5'. Backspace toggles the direction of the slide show. The
+right arrow, 'N', or 'n' shows the "next" image whilst the left
+arrow, 'P', or 'p' shows the "previous" image.
+.Pp
+On smart phones, swiping up and right shows the "previous" image and
+down and left the "next" image. Swiping faster or slower emulates
+showing the slide show faster or slower as there is no keyboard to
+input letters.
 .Sh SEE ALSO
 .Xr ImageMagick 1 ,
 .Xr exiftran 1 ,
