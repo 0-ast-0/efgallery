@@ -1,22 +1,32 @@
 // efgallery: a modern, minimalist javascript photo gallery
 // Copyright(c) 2011-2016 by wave++ "Yuri D'Elia" <wavexx@thregr.org>
 // Distributed under GPLv2+ (see COPYING) WITHOUT ANY WARRANTY.
+// Enhanced and maintained as of 2018 in pkgsrc "efgallery" by
+// "Adrian Steinmann" <ast@marabu.ch>.
+
 "use strict";
 
 var datafile = 'data.json';
 
 // dimensions
 var padding = 22;
-var duration = 500;      // for scrolling
-var thrdelay = 1500;     // throbber delay
-var hidedelay = 3000;    // header and caption hiding delay
-var slidedelay = 5000;   // slide show delay
-var prefetch = 1;
+var duration = 500;                        // for scrolling
+var thrdelay = 1500;                       // throbber delay
+var hidedelay = 3000;                      // header and caption hiding delay
+
 var minupscale = 640 * 480;
 var thumbrt = 16/9 - 5/3;
 var cutrt = 0.15;
 var capdelay = 5000;
 var rdwdelay = 500;
+
+// slide show parameters
+var slidedelay_default = 5000;             // slide show delay 5000 = 5 seconds
+var slidedelay = slidedelay_default;       // slide show delay
+var slidedelay_step = 500;                 // slide show delay step for faster/slower in ms
+var slidedelay_min = 500;                  // slide show delay floor
+var slidereverse = false;                  // skip through album backwords instead of forwards
+var prefetch = 1;
 
 // state variables
 var emain;      // main object
@@ -468,29 +478,47 @@ function toggleSlideshow()
 function setupHeader()
 {
   ehdr.empty();
-  var el;
+  var h;
+  if(imgs.version)
+  {
+    h = "                        efgallery v" + imgs.version;
+  } else {
+    h = "                     Slideshow Controls";
+  }
+  h += "\nStart | Stop                  Click Large Image | Space ";
+  h += "\nPrevious Image            ← | P | p ";
+  h += "\nNext Image                  → | N | n ";
+  h += "\nFaster Slideshow         ↑ | F | f ";
+  h += "\nSlower Slideshow        ↓ | S | s ";
+  h += "\nNormal Speed (5s)      5 ";
+  h += "\nToggle Direction          Delete | Backspace | R | r ";
+  var el = new Element('span', { 'title': h, 'html': '?' });
+  ehdr.adopt(el);
+  el = new Element('a', { 'title': 'Go to Overview', 'href': 'view/overview.html' });
+  el.set('html', '<img src="view/overview.png"/>');
+  ehdr.adopt(el);
   if(imgs.index)
   {
-    el = new Element('a', { 'title': 'Back to index', 'href': imgs.index });
+    el = new Element('a', { 'title': 'Back to Gallery Index', 'href': imgs.index });
     el.set('html', '<img src="view/back.png"/>');
     ehdr.adopt(el);
   }
   if(imgs.data[eidx].file)
   {
     var file = imgs.data[eidx].file[0];
-    el = new Element('a', { 'title': 'Download image', 'href': file });
+    el = new Element('a', { 'title': 'Download Original', 'href': file });
     el.set('html', '<img src="view/eye.png"/>');
     ehdr.adopt(el);
   }
   if(imgs.download)
   {
-    el = new Element('a', { 'title': 'Download album', 'href': imgs.download });
+    el = new Element('a', { 'title': 'Download Album ZIP', 'href': imgs.download });
     el.set('html', '<img src="view/download.png"/>');
     ehdr.adopt(el);
   }
   if(imgs.captions)
   {
-    el = new Element('a', { 'title': 'Toggle captions' });
+    el = new Element('a', { 'title': 'Toggle Captions' });
     el.setStyle('cursor', 'pointer');
     el.addEvent('click', toggleCap);
     var img = new Element('img', { 'id': 'togglecap', 'src': 'view/cap-' + capst + '.png' });
@@ -498,10 +526,7 @@ function setupHeader()
     el.inject(ehdr);
   }
   if(imgs.data[eidx].date)
-    ehdr.adopt(new Element('span', { 'title': 'EXIF timestamp', 'html': imgs.data[eidx].date }));
-  el = new Element('a', { 'title': 'Overview', 'href': 'view/overview.html' });
-  el.set('html', '<img src="view/overview.png"/>');
-  ehdr.adopt(el);
+    ehdr.adopt(new Element('span', { 'title': 'EXIF Timestamp of Image', 'html': imgs.data[eidx].date }));
   ehdr.setStyle('display', (ehdr.children.length? 'block': 'none'));
   ehdr.removeEvent('click', toggleSlideshow);
 }
@@ -637,23 +662,31 @@ function flash()
 
 function prev()
 {
-  if(eidx != 0)
-    switchTo(eidx - 1);
-  else
-  {
-    flash();
-    switchTo(imgs.data.length - 1);
+  if (!slidereverse) {
+    next();
+  } else {
+    if(eidx != 0)
+      switchTo(eidx - 1);
+    else
+    {
+      flash();
+      switchTo(imgs.data.length - 1);
+    }
   }
 }
 
 function next()
 {
-  if(eidx != imgs.data.length - 1)
-    switchTo(eidx + 1);
-  else
-  {
-    flash();
-    switchTo(0);
+  if (slidereverse) {
+    prev();
+  } else {
+    if(eidx != imgs.data.length - 1)
+      switchTo(eidx + 1);
+    else
+    {
+      flash();
+      switchTo(0);
+    }
   }
 }
 
@@ -797,15 +830,49 @@ function initGallery(data)
 
   window.addEvent('keydown', function(ev)
   {
-    if(ev.key == 'up' || ev.key == 'left')
+    if(ev.key == 'left')
     {
       ev.stop();
       prev();
     }
-    else if(ev.key == 'down' || ev.key == 'right' || ev.key == 'space')
+    else if(ev.key == 'right')
     {
       ev.stop();
       next();
+    }
+    else if(ev.key == 'space')
+    {
+      ev.stop();
+      toggleSlideshow();
+    }
+    else if(ev.key == 'R' || ev.key == 'r' || ev.key == 'delete' || ev.key == 'backspace')
+    {
+      ev.stop();
+      slidereverse = slidereverse? false: true;
+    }
+    else if(ev.key == '5')
+    {
+      ev.stop();
+      slidedelay = slidedelay_default;
+      idle.setTimeout(slidedelay);
+    }
+    else if(ev.key == 'f' || ev.key == 'F' || ev.key == 'up')
+    {
+      ev.stop();
+      slidedelay -= slidedelay_step;
+      if (slidedelay<slidedelay_min) {
+        flash();
+        slidedelay = slidedelay_min;
+      } else {
+        idle.setTimeout(slidedelay);
+      }
+    }
+    else if(ev.key == 's' || ev.key == 'S' || ev.key == 'down')
+    {
+      ev.stop();
+      slidedelay += slidedelay_step;
+      if (slidedelay>10*slidedelay_default) flash();
+      idle.setTimeout(slidedelay);
     }
   });
 
