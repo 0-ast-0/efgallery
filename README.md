@@ -336,9 +336,9 @@ initial version "1.x" [fgallery](https://github.com/wavexx/fgallery/)
 developed by Yuri D'Elia.
 
 Version "2.x" was started by Alex Schroeder which merged many of
-my languishing pull requests to fgallery. He renamed it
+my languishing pull requests to the original fgallery. He renamed it
 [sitelen-mute](https://github.com/kensanata/sitelen-mute/) and
-intends to continue development.
+maintains Linux
 
 The original copyright GPLv2+ applies.
 
