@@ -1,11 +1,13 @@
 #!/usr/pkg/bin/perl
-# A straightforward photo gallery generator
+# Generate a refined photo album in HTML/CSS and optional JavaScript
+#
 # Maintained by Adrian Steinmann <ast@NetBSD.org>
-# for Perl scripting and BSD pkgsrc integration
-# at https://github.com/0-ast-0/efgallery
+# BSD pkgsrc integration at https://github.com/0-ast-0/efgallery
+#
 # Also maintained for Linux by Alex Schroeder <alex@gnu.org> and
 # Petr Ruzicka <petr.ruzicka@gmail.com> (Docker integration)
 # at https://github.com/kensanata/sitelen-mute
+#
 # Forked from fgallery https://www.thregr.org/~wavexx/software/fgallery/
 # Copyright(c) 2011-2016 by wave++ "Yuri D'Elia" <wavexx@thregr.org>
 # Distributed under GPLv2+ (see COPYING) WITHOUT ANY WARRANTY.
@@ -14,7 +16,7 @@ use v5.14;
 use strict;
 use warnings;
 
-our $VERSION = "2.4";
+our $VERSION = "2.5";
 
 use locale;
 use utf8;
@@ -87,6 +89,7 @@ my $galleryTitle = '';
 my $galleryDescription = '';
 my $galleryUrl = '';
 my $updating = 0;
+my $startslideshow = 'no';
 my %copy_method = (
   copy => '',
   hard => '--link',
@@ -226,6 +229,7 @@ sub write_json
     $j->{data} = [ sort { $a->{stamp} <=> $b->{stamp} } @{$jh->{data}}, @$ja ];
   }
   $j->{version} = $VERSION;
+  $j->{startslideshow} = $startslideshow;
   $j->{timestamp} = time();
   $j->{timecreated} = sprintf "%s", scalar localtime $j->{timestamp};
   $j->{name} = $name if $name;
@@ -458,6 +462,7 @@ sub print_help
   --min-thumb WxH       minimum thumbnail size ($minthumb[0]x$minthumb[1])
   --no-sRGB             do not remap preview/thumbnail color profiles to sRGB
   --quality Q           preview image quality (0-100, currently: $imgq)
+  --startslideshow      gallery URLs will immediately start slide show
   --link-orig           copy method (hard,sym,ref,copy); default: $copy_method
   --viewdir             CSS/JavaScript srcdir ($viewdir)
   --index url           URL location for the index/back button
@@ -501,6 +506,7 @@ my ($rc, @ARGS) = GetOptions(
   'url=s' => \$galleryUrl,
   'link-orig:s' => sub { $copy_method = parse_copy_method($_[0], $_[1]); },
   'viewdir:s' => \$viewdir,
+  'startslideshow' => sub { $startslideshow = 'yes'; },
 );
 
 print_help(2) unless $rc && ( (@ARGV == 2) || ((@ARGV == 1) && $updating) );
