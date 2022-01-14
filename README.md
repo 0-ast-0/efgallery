@@ -1,6 +1,6 @@
-# efgallery: a straightforward photo gallery generator
+# efgallery: Generate a photo album in HTML/CSS and optional JavaScript
 
-*efgallery* is a static photo gallery generator written in Perl
+*efgallery* is a static photo web gallery generator written in Perl
 with a minimalist look and feel. It shows your photos (and optionally
 detects faces so they aren't cropped in the thumbnails).
 
@@ -29,6 +29,7 @@ requirements on the web server or browser.
 - Loads fast! Especially over slow connections.
 - Includes original (raw) pictures in a zip file for downloading.
 - Panoramas can be seen full-size by default.
+- Simple control of slide show speed and sequence
 
 This github repository will serve to cherry pick features coming
 from the other fgallery versions out there and is the master site
