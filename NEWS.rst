@@ -1,3 +1,10 @@
+efgallery 2.5. 2022-01-14
+-------------------------
+* Fixed reverse order bug (-r option) which was not working at all
+* Retrofitted --startslideshow option which was dormant in JS but not in Perl script
+* Added some simpe Slide Show Controls in view/index.js and updated the documentation
+* A ? Icon on th eupepr left shows a pop-up as a reference to the slide show controls
+
 efgallery 2.0.0. 2018-05-11
 ------------------------------
 
