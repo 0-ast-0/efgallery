@@ -1,7 +1,7 @@
 How to Prepare a New Release
 ============================
 
-1. Update `$VERSION` in `efgallery` (near line 17).
+1. Update `$VERSION` in `efgallery` (near line 19).
 
 2. Commit this change.
 
