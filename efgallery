@@ -482,7 +482,7 @@ sub print_help
   -d                    do not offer full album zip download of original files
   -f                    improve thumbnail cutting by performing face detection
   -j N                  set process-level parallelism (number of workers)
-  --noblur              skip blurry backdrop generation (just dark noise)
+  --no-blur             skip blurry backdrop generation (just dark noise)
   --max-full WxH        maximum full image size ($maxfull[0]x$maxfull[1])
   --max-thumb WxH       maximum thumbnail size ($maxthumb[0]x$maxthumb[1])
   --min-thumb WxH       minimum thumbnail size ($minthumb[0]x$minthumb[1])
@@ -521,11 +521,11 @@ my ($rc, @ARGS) = GetOptions(
   't' => sub { $chronological = 0; },
   'u' => sub { $updating = 1; },
   'v' => sub { $verbose++; },
-  'noblur' => sub { $do_blur = 0; },
+  'no-blur' => sub { $do_blur = 0; },
+  'no-sRGB' => sub { $sRGB = 0; },
   'max-full=s' => sub { @maxfull = parse_wh(@_); },
   'max-thumb=s' => sub { @maxthumb = parse_wh(@_); },
   'min-thumb=s' => sub { @minthumb = parse_wh(@_); },
-  'no-sRGB' => sub { $sRGB = 0; },
   'quality=i' => sub { $imgq = parse_int($_[0], $_[1], 0, 100); },
   'index=s' => \$indexUrl,
   'title=s' => \$galleryTitle,
