@@ -5,41 +5,58 @@
 .Nd static HTML, JavaScript, CSS photo album generator in Perl
 .Sh SYNOPSIS
 .Nm
-.Op Fl hvsiotrpdf
+.Op Fl fihkortuv
 .Op Fl c Ar methods
 .Op Fl j Ar N
-.Op Fl -max-full Ar WxH
-.Op Fl -max-thumb Ar WxH
-.Op Fl -min-thumb Ar WxH
-.Op Fl -no-sRGB
-.Op Fl -quality Ar Q
-.Op Fl -index Ar URL
+.Op Fl n Ar ALBUM_NAME
+.Op Fl max-full Ar WxH
+.Op Fl max-thumb Ar WxH
+.Op Fl min-thumb Ar WxH
+.Op Fl no-blur
+.Op Fl no-sRGB
+.Op Fl quality Ar Q
+.Op Fl startslideshow
+.Op Fl index Ar URL
+.Op Fl link-orig Ar TYPE
+.Op Fl link-view Ar TYPE
+.Op Fl viewdir Ar DIR
+.Op Fl url Ar URL
+.Op Fl title Ar TITLE
+.Op Fl description Ar DESCRIPTION
 .Op Fl n Ar album name
-.Ar input-dir
-.Ar output-dir
+.Ar INPUT_DIRECTORY
+.Ar OUTPUT_DIRECTORY
 .Sh DESCRIPTION
 .Nm
 is a static photo gallery generator with a minimalist look and feel.
 .Nm
-shows your photos.
-There is no server-side processing, only static generation.
-The resulting gallery can be uploaded anywhere without additional requirements and works with any modern browser.
-JavaScript is required to view the gallery.
-The gallery will feature a large area for viewing a single image, and a scrollable horizontal or vertical bar with thumbnails.
-The orientation of the thumbnail bar will be automatically chosen based on the size of the browser window.
-The user can click on a picture to start a slide show there or use the arrow keys on the keyboard to move forward and back.
-The user can also click on the thumbnails to quickly go to another image.
-Each image has a unique anchor tag, and the user can copy&paste the URL from the address bar of the browser which will point to the currently displayed image.
-Clicking on the previewed image will display the original at full resolution, unless th
-.Fl s
-option is used.
+shows your photos. There is no server-side processing, only static
+generation. The resulting gallery can be uploaded anywhere without
+additional requirements and works with any modern browser. Although
+.Nm
+generates a no-JavaScript mode, enabling JavaScript greatly enhances
+the user experience of the photo album. With JavaScript, the gallery
+will feature a large area for viewing a single image, and a scrollable
+horizontal or vertical bar with thumbnails. The orientation of the
+thumbnail bar will be automatically chosen based on the size of the
+browser window.
+.Pp
+The user can tap the space bar to start the slide show or click on a
+thumbnail to start it with that image. The the arrow keys on the
+keyboard to move forward and back. The user can also click on the
+thumbnails to quickly go to another image. Each image has a unique
+anchor tag, and the user can copy and paste the URL from the address
+bar of the browser which will point to the currently displayed
+image. Clicking on the previewed image will display the original
+at full resolution when the include option is specified with
+.Fl i .
 .Pp
 .Nm
 reads in JPEG, PNG and TIFF images,
 and automatically generates preview images, backdrops and thumbnails using
 .Xr ImageMagick 1 .
-It will automatically correct the orientation of the generated images using EXIF tags in the original images,
-using either
+It will automatically correct the orientation of the generated
+images using EXIF tags in the original images, using either
 .Xr exiftran 1
 or
 .Xr exifautotran 1 .
@@ -54,25 +71,27 @@ and/or
 .Xr pngcrush 1
 if these programs are installed.
 If the original images contain color profiles,
-then the generated images will be converted to the sRGB colorspace using
+then the generated images will be converted to the sRGB color space using
 .Xr tificc 1
 if that program is installed, unless the
-.Fl -no-sRGB
-option is used.
+.Fl no-sRGB
+option is specified.
 .Pp
 .Nm
-can also add captions to images. These can either be read from the EXIF headers (using the Title, Description and optionally the Comment tags), or from an external file (using the same filename as the image but with a .txt or .xmp extension).
-The
+can also display captions with the images. These can either be read from the
+EXIF headers (using the Title, Description and optionally the Comment
+tags), or from an external file (using the same filename as the
+image but with a .txt or .xmp extension). The
 .Fl c
 option can be used to control which methods of caption extraction will be used.
 .Pp
-You have to manually specify the directory with the original image files and the desired output directory for the web gallery.
-Optionally, you can specify a title for the gallery.
-By default, the gallery will include a downloadable ZIP archive with the complete photo album, unless either the
+You have to manually specify the directory with the original image
+files and the desired output directory for the web gallery.
+Optionally, you can specify a title for the gallery. By default,
+the gallery will include a downloadable ZIP archive with the complete
+photo album, unless either the
 .Fl d
-or
-.Fl s
-option is used.
+option is specified.
 After the gallery has been generated,
 you may have to change the file permissions using
 .Xr chmod 1
@@ -82,15 +101,13 @@ to allow them to be read by others.
 .It Fl h, -help
 Display a list of options.
 .It Fl v
-Verbose output (show commands as being executed).
-.It Fl s
-Slim output (no original files and downloads).
+Verbose output (show commands as being executed), can be repeated for more verbosity.
 .It Fl i
 Include individual originals in the generated album.
 .It Fl o
 Do not auto-orient images.
 .It Fl t
-Do not sort images on time.
+Do not sort images chronologically.
 .It Fl r
 Reverse the order of the images.
 .It Fl p
@@ -111,69 +128,83 @@ Use
 .Ar N
 threads to process the images.
 .It Fl u
-Update an existing gallery by adding additional new images.  You
+Update an existing gallery by adding additional new images. You
 can force an update of individual images my deleting them from the
-img subdirectory in an existing gallery.
-.It Fl -max-full Ar WxH
+.Xr img
+sub-directory in an existing gallery.
+.It Fl max-full Ar WxH
 Set the maximum full image size to
 .Ar WxH
 pixels. The default is 1600x1200 pixels.
-.It Fl -max-thumb Ar WxH
+.It Fl max-thumb Ar WxH
 Set the maximum size of thumbnails to
 .Ar WxH
 pixels. The default is 267x200 pixels.
-.It Fl -min-thumb Ar WxH
+.It Fl min-thumb Ar WxH
 Set the minimum size of thumbnails to
 .Ar WxH
 pixels. The default is 150x112 pixels.
-.It Fl -no-sRGB
+.It Fl no-blur
+Do not generate image specific blurs but use a generic, dark noise background.
+.It Fl no-sRGB
 Do not try to remap preview and thumbnail image color profiles to sRGB.
-.It Fl -quality Ar Q
+.It Fl quality Ar Q
 Set the JPEG quality of the preview images to
 .Ar Q .
 The default is 90.
-.It Fl -startslideshow
+.It Fl startslideshow
 A gallery URL will by default show the thumbnail bar at the image
 specified (or the first one if no anchor was given). By setting
 this option, the gallery slide show starts immediately instead.
-.It Fl -index Ar URL
+.It Fl index Ar URL
 Specify the URL location for the index and back buttons.
-.It Fl -title Ar TITLE
-The title for your web gallery, for social media.
-.It Fl -description Ar DESCRIPTION
-A description of your web gallery, for social media.
-.It Fl -url Ar URL
-The URL where you will install the gallery, for social media.
-.It Fl -link-orig[=TYPE]
-Change the method used to copy the original images.  If this option
-is not given, the method defaults to "copy".  Otherwise the type
+.It Fl link-orig[=TYPE]
+Change the method used to copy the original images. If this option
+is not given, the method defaults to "copy". Otherwise the type
 must be one of
 .Ar copy ,
 .Ar hard ,
-.Ar soft ,
+.Ar syml ,
 or
 .Ar ref :
-for normal copy, hard-linking, soft-linking or ref-linking (on
+for normal copy, hard-linking, symbolic-linking or ref-linking (on
 Linux) respectively.
+.It Fl link-view[=TYPE]
+Similarly, the "copy" method to use for the view sub-directory
+containing the JavaScript, CSS, and other web resources; this
+defaults to symbolic-linking. In this way updates to the JavaScript
+are also effective on
+.Nm
+albums created with earlier versions.
+.It Fl viewdir Ar DIRECTORY
+Instead of using the default view sub-directory containing the
+JavaScript and other web resources, use the specified one (for
+testing new versions).
+.It Fl url Ar URL
+The URL where you will install the gallery, for social media.
+.It Fl title Ar TITLE
+The title for your web gallery, for social media.
+.It Fl description Ar DESCRIPTION
+A description of your web gallery, for social media.
 .El
 .Ss Linking on Social Media
 Linking to your web gallery on social media will not produce a nice
 preview unless you provide the following three arguments: the title
 to use
-.Pq Fl -title Ns ,
+.Pq Fl title Ns ,
 a short description
-.Pq Fl -description Ns ,
+.Pq Fl description Ns ,
 and the entry URL
-.Pq Fl -url Ns .
+.Pq Fl url Ns .
 The first image in the gallery will be used as the preview image.
 .Ss Slide Show Controls
 Hovering over the small question mark in the upper left next to
 image timestamp pops up a table of slide show controls for reference.
 .Pp
-The
+Tapping the
 .Ar Space
-bar or clicking on the large center image starts or stops
-the slide show. The display speed can be controlled with the
+bar starts or stops the slide show. The display speed can be
+controlled with the
 .Ar UpArrow , F ,
 or
 .Ar f
@@ -185,7 +216,7 @@ specifies "slower".
 .Pp
 Typing
 .Ar 5
-gets one back to the default speed of five seconds per image.  The
+gets one back to the default speed of five seconds per image. The
 .Ar Delete
 key, also called the
 .Ar Backspace
@@ -198,6 +229,11 @@ skips to the "next" image whilst the
 or
 .Ar p
 skips to the "previous" image.
+.Pp
+Captions can be enabled or disabled by clicking on the caption icon,
+and if the original images were included (see
+.Fl i
+option), clicking on the large image or eye icon will show that original.
 .Pp
 On smart phones, swiping up and right skips to the previous image and
 down and left to the next image. Slide show speed and direction
