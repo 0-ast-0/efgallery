@@ -83,8 +83,8 @@ my $workers = 0;
 my $sRGB = 1;
 my $do_blur = 1;
 my $indexUrl = undef;
-my %captions = map { $_ => 1} qw{txt xmp exif cmt};
-my @captions = keys %captions;
+my @captions = (qw{txt xmp exif cmt});
+my %captions = map { $_ => 1} @captions;
 my $galleryTitle = '';
 my $galleryDescription = '';
 my $galleryUrl = '';
@@ -101,12 +101,13 @@ if ($^O =~ m{bsd$}oi) {
 } else {
   $copy_method{ref} = '--reflink';
 }
-my $fdownload = catfile(qw{files album.zip});
+my $files_dir = join '_', $me, "v$VERSION", 'files';
+my $fdownload = catfile($files_dir, $files_dir . '.zip');
 my $alg = 'sha256';
 my $sha = Digest::SHA->new($alg);
 my $odata = { data => [] };
 my $ofiles;
-my @deleted;
+my @deleted = ();
 my $dir;
 my $absDir;
 my $out;
@@ -115,6 +116,7 @@ my $name;
 my $aprops;
 my $adata;
 my $zipfile;
+my $json_file;
 
 # support functions
 sub fatal
@@ -127,6 +129,23 @@ sub cmd_exists
 {
   my ($c) = @_;
   return qx{/bin/sh -c "command -v $c"};
+}
+
+# remove binary ThumbnailImage when dumping properties (verbosity > 2)
+sub dump_properties
+{
+  die "USAGE: dump_properties ARRAY" unless (@_ == 1) && (ref $_[0] eq 'ARRAY');
+  my ($x) = @_;
+  my $i = 0;
+  for (@$x) {
+    die "dump_properties: props element $i not a HASH but ", ref $_ unless ref $_ eq 'HASH';
+    my %h = %$_;                        # make a copy to leave original intact
+    delete $h{ThumbnailImage};          # when called with aprops
+    delete $h{props}->{ThumbnailImage}; # when called with adata
+    warn Data::Dumper->Dump([\%h], ["props[$i]"]), "\n";
+    $i++;
+  }
+  1;
 }
 
 sub sys
@@ -235,7 +254,9 @@ sub write_json
   $j->{name} = $name if $name;
   $j->{download} = $fdownload if $zipfile && -f $zipfile;
   $j->{index} = $indexUrl if $indexUrl;
-  print($fd JSON::PP->new->ascii->pretty->canonical->encode($j));
+  my $json = JSON::PP->new->ascii->pretty->canonical->encode($j);
+  print $fd $json;
+  warn "New file $f:\n$json" if $verbose > 1;
   if (close($fd)) {
       warn "Wrote new $f\n";
       return $f;
@@ -522,8 +543,10 @@ if (($galleryTitle || $galleryDescription || $galleryUrl)
 # only -u may operate on the "input directory" (i.e., for image removals)
 ($dir, $out) = @ARGV;
 $absDir = canonpath(rel2abs($dir)) . '/';
-$absOut = canonpath(rel2abs($out)) . '/' if $out;
-if ($absOut) {
+$json_file = catfile($absDir, 'data.json');
+if ($out) {
+  $absOut = canonpath(rel2abs($out));
+  $json_file = catfile($absOut, 'data.json');
   if (!-d $absDir) {
     fatal "input directory '$absDir' does not exist";
   } elsif ($absDir eq $absOut) {
@@ -531,9 +554,11 @@ if ($absOut) {
   } elsif (substr($absOut, 0, length($absDir)) eq $absDir) {
     fatal "output directory cannot be a sub-directory of input directory";
   } elsif (!-d $absOut) {
-    make_path($absOut) || fatal "Failed to create output directory $absOut";
+    if ($updating) {
+      fatal "Directory '$absOut' missing, cannot update" unless is_a_gallery($absOut);
+    }
   } elsif (!is_a_gallery($absOut)) {
-    fatal "output dir '$absOut' exists, but doesn't look like a ${me} dir";
+    fatal "output dir '$absOut' exists, but doesn't look like an $me album";
   }
 } else {
   fatal "Use -u option if you want to update image removals"
@@ -557,12 +582,12 @@ if ($offerzip) {
 }
 if (!cmd_exists('jpegoptim')) {
   $optimize_jpg = 0;
-  warn "Command jpegoptim missing - will not optimze JPEG images (see also -k option)\n"
+  warn "Command jpegoptim missing - will not optimize JPEG images (see also -k option)\n"
     if $verbose;
 }
 if (!cmd_exists('pngcrush')) {
   $optimize_png = 0;
-  warn "Command pngcrush missing - will not optimze PNG images (see also -k option)\n"
+  warn "Command pngcrush missing - will not optimize PNG images (see also -k option)\n"
     if $verbose;
 }
 fatal "Missing facedetect (see $facedetect_url); cannot use -f option"
@@ -580,10 +605,22 @@ while($orient)
     unless $exiftrancmd;
 }
 
+if ($updating) {
+  # if the directory already exists, don't fiddle with it unless it has a data.json file
+  fatal "Output directory '$absOut' doesn't contain '$json_file'; cannot continue"
+    unless -f $json_file;
+  fatal "File '$json_file' not writable; cannot update album"
+    unless -w _;
+}
+
 $zipfile = catfile($absOut, $fdownload);
 if ($updating && $offerzip) {
   if (! -f $zipfile) {
-    warn "Original zip file '$zipfile' missing: cannot create one when updating (see -d option)\n";
+    warn "Original zip file '$zipfile' missing: will not create one when updating (see -d option)\n";
+    $offerzip = 0;
+  }
+  if (! -w _) {
+    warn "Original zip file '$zipfile' not writable: will not create one when updating (see -d option)\n";
     $offerzip = 0;
   }
 }
@@ -610,9 +647,9 @@ fatal "No image files found in '$absDir'" unless @files || $updating;
 my $backblur = int(($minthumb[0] + $minthumb[1]) / 2 * 0.1);
 my @backsize = (int($minthumb[0] * 4), int($minthumb[1] * 3));
 
-# updating needs to use dome data from the original JSON file
-my $json_file = catfile($absOut, 'data.json');
+# updating reads data from the original JSON file and rewrites it later
 if (-f $json_file) {
+  fatal "A non-writable '$json_file' was found; cannot continue" unless -w _;
   unless ($updating) {
     warn "Found $json_file; updating ...\n";
     $updating++;
@@ -647,11 +684,14 @@ if (-f $json_file) {
 } else {
   # cleanup target paths
   fatal "No $json_file file found, cannot update" if $updating;
-  for ( qw(thumbs blurs imgs files) ) {
+  for ( qw(thumbs blurs imgs), $files_dir ) {
     remove_tree(catfile($absOut, $_));
     make_path(catfile($absOut, $_));
   }
 }
+
+# now that $absOut definitely exists, do all work there
+chdir $absOut || fatal "Failed to 'cd $absOut' for $me album creation";
 
 # disable sub-process parallelism when threading ourselves
 $workers = @files if $workers > @files;
@@ -735,14 +775,13 @@ sub analyze_file
 
 # get image properties of files with image extensions
 if (@files) {
-  warn sprintf "Found %d prospective image files\n", scalar @files
+  warn sprintf "Found %d candidate image files\n", scalar @files
     if $verbose;
   warn map { "  $_\n" } @files
     if @files && $verbose > 1;
   progress::init('Image file inspection', scalar @files);
   $aprops = run_in_parallel('analyze', \&analyze_file, \@files);
-  warn Data::Dumper->Dump([$aprops], ['$aprops']), "\n"
-    if $verbose > 2;
+  dump_properties($aprops) if $verbose > 2;
   # remove any files that failed analysis
   my @nf = ();
   my @na = ();
@@ -765,15 +804,22 @@ if ($updating) {
   my %o = map { $_ => 1 } values %$ofiles;
   delete $o{catfile('imgs', $_)} for @{current_imgs(catfile($absOut, 'imgs'))};
   # these files will need to be removed from zipfile further below
-  @deleted = map { (File::Spec->splitpath($_))[2] } keys %o;
-  if (@deleted) {
-    warn sprintf "%d image files were not found in data.json; updating\n",
-         scalar @deleted;
+  my @d = map { (File::Spec->splitpath($_))[2] } keys %o;
+  if (@d) {
+    my $n = scalar @d;
+    $n == 1 ?  warn "One image file was removed; updating gallery\n" :
+      warn sprintf "%d image files were removed; updating gallery\n", $n;
     # redefined aref $odata->{data} leaving out the deleted images
     my @ndata = ();
     for ( @{$odata->{data}} ) {
       if ( (exists $_->{img}) && (exists $o{$_->{img}->[0]}) ) {
-        warn "Image file $_->{img}->[0] was removed\n" if $verbose;
+        warn "Image file '$_->{img}->[0]' was removed\n" if $verbose;
+        push @deleted, $_->{file} || $_->{orig};
+        for ($_->{blur}, $_->{thumb}->[0], $_->{file} || $_->{orig}) {
+          next unless -f $_;
+          unlink $_ || fatal "Failed to remove '$_': $!";
+          warn "Removed '$_'\n" if $verbose > 1;
+        }
         next;
       }
       push @ndata, $_;
@@ -814,7 +860,7 @@ sub process_img
   my $file = $props{file};
 
   # derived file names
-  my $ffile = catfile('files', "$root.$suffix");
+  my $ffile = catfile($files_dir, "$root.$suffix");
   my $fbase = "$root.$ext";
   my $fimg = catfile('imgs', $fbase);
   my $fthumb = catfile('thumbs', $fbase);
@@ -825,7 +871,7 @@ sub process_img
 
   progress::status($fbase);
 
-  # copy source image, apply optimizations unless supressed, set mode and file timestamp
+  # copy source image, apply optimizations unless suppressed, set mode and file timestamp
   copy_source_file($file, $absFout);
   if ($optimize || $orient) {
     if ($orient && $props{FileType} eq "JPEG" && ($props{Orientation} // 0)) {
@@ -950,19 +996,21 @@ if (@$aprops) {
   progress::init($msg, scalar(@$aprops));
   $adata = run_in_parallel('process', \&process_img, $aprops);
   progress::done();
-  warn Data::Dumper->Dump([$adata], ['$adata']), "\n"
-    if $verbose > 2;
+  dump_properties($adata) if $verbose > 2;
 }
 
 # create or update the album zip file
 if ($offerzip) {
   if ($adata && @$adata) {
-    my @f = map { catfile($absOut, $_->{file}[0]) } @$adata;
+    # filenames relative to $absOut, i.e. efgallery_files/foo.jpg
+    my @f = map { $_->{file}[0] } @$adata;
     if ($p7zip) {
       my $mt = $workers ? "-mmt=$workers" : '';
       sys('7za', '-tzip', $mt, 'a', '--', $zipfile, @f);
     } else {
-      sys('zip', '-q9j', $zipfile, @f);
+      my $v = '';
+      $v = '-v' if $verbose;
+      sys('zip', '-q9j', $v, $zipfile, @f);
     }
     warn sprintf "Updated %s with %d image files\n", $zipfile, scalar @f;
   }
@@ -975,7 +1023,6 @@ if (@deleted && -f $zipfile) {
   } else {
     sys('zip', '-q9j', '-d', $zipfile, @deleted);
   }
-  unlink catfile($absOut, 'files', $_) for @deleted;
   warn sprintf "Removed %d image files from %s\n", scalar @deleted, $zipfile;
 }
 
@@ -993,13 +1040,14 @@ for my $fdata (@$adata) {
   for ( qw(date stamp caption) ) {
     $data{$_} = $fdata->{props}{$_} if defined $fdata->{props}{$_};
   }
-  my $file = catfile($absOut, $fdata->{file}[0]);
+  my $file = $fdata->{file}[0];
   fatal("No such file '$file'") unless -f $file;
   fatal("Can't read file '$file'") unless -r _;
   $sha->addfile($file);
   my $d = $sha->hexdigest();
   $sha->reset();
   $data{$alg} = $d;
+  $data{file} = $fdata->{file}[0];
   push(@{$json{data}}, \%data)
     unless (exists $ofiles->{$d}) && ($ofiles->{$d} = $data{stamp});
   # remove superfluous raw files
@@ -1014,20 +1062,22 @@ for my $fdata (@$adata) {
     $keep = 1 if ($mp >= $omp) && ($mp > $amp) && (abs($x/$y) >= $panort);
   }
   unless ($keep) {
+    # stash the original name in orig when not keeping files to view in original
+    $data{orig} = $data{file};
+    delete $data{file};
     unlink($file);
     warn "Deleted raw file '$file' (see -i and -k options)\n" if $verbose > 1;
   }
 }
-write_json(catfile($absOut, 'data.json'), \%json, $odata->{data});
+write_json('data.json', \%json, $odata->{data});
 
 # remove the files directory when empty
-rmdir(catfile($absOut, 'files'));
+rmdir($files_dir);
 
 # (re-)setup copy/link of view subdirectory
-my $vdir = catfile($absOut, 'view');
+my $vdir = 'view';
 remove_tree($vdir) if $updating;
 unless (-d $vdir) {
-  chdir($absOut) || fatal "Failed to 'cd $absOut' for symlink creation";
   if ($copy_method eq 'sym') {
     sys('ln', '-s', $viewdir, '.');
    } else {
@@ -1064,7 +1114,7 @@ for (@{$adata->{data}}) {
 $html .= qq{\n\t</div>\n};
 $html .= qq{    </div>\n};
 $html .= qq{    };
-my $indexhtml = slurp(catfile($absOut, 'view', 'index.html'));
+my $indexhtml = slurp('view/index.html');
 $indexhtml =~ s@<noscript>.*?</noscript>@<noscript>$html</noscript>@s;
 # include the optional social media decoration
 if ($galleryTitle && $galleryDescription && $galleryUrl) {
@@ -1088,7 +1138,7 @@ if ($galleryTitle && $galleryDescription && $galleryUrl) {
 }
 
 # and finally, write out the new index.html and noscript.html files
-my $index = catfile($absOut, 'index.html');
+my $index = 'index.html';
 unlink($index);
 my $fd;
 open($fd, ">:encoding($ENCODING)", $index)
@@ -1099,7 +1149,7 @@ if (close $fd) {
 } else {
   fatal "Failed to write new $index: $!\n";
 }
-my $noscript = catfile($absOut, 'noscript.html');
+my $noscript = 'noscript.html';
 open($fd, ">:encoding($ENCODING)", $noscript)
   || fatal "cannot write $noscript: $!";
 for (split m{\n+}o, $indexhtml) {

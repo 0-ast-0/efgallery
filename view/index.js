@@ -481,11 +481,17 @@ function setupHeader()
   var h;
   if(imgs.version)
   {
-    h = "                        efgallery v" + imgs.version;
+    h = "                          efgallery v" + imgs.version;
   } else {
-    h = "                     Slideshow Controls";
+    h = "                       Slideshow Controls";
   }
-  h += "\nStart | Stop                  Click Large Image | Space ";
+  if(imgs.data[eidx].file)
+  {
+    h += "\nStart | Stop                  Space ";
+    h += "\nView Original               Click Large Image ";
+  } else {
+    h += "\nStart | Stop                  Space | Click Large Image ";
+  }
   h += "\nPrevious Image            ← | P | p ";
   h += "\nNext Image                  → | N | n ";
   h += "\nFaster Slideshow         ↑ | F | f ";
@@ -505,8 +511,8 @@ function setupHeader()
   }
   if(imgs.data[eidx].file)
   {
-    var file = imgs.data[eidx].file[0];
-    el = new Element('a', { 'title': 'Download Original', 'href': file });
+    var file = imgs.data[eidx].file;
+    el = new Element('a', { 'title': 'View Original Image', 'href': file });
     el.set('html', '<img src="view/eye.png"/>');
     ehdr.adopt(el);
   }
@@ -541,7 +547,7 @@ function onMainReady()
   setupHeader();
   if(imgs.data[eidx].file)
   {
-    var file = imgs.data[eidx].file[0];
+    var file = imgs.data[eidx].file;
     eimg.addEvent('click', function() { window.location = file; });
     eimg.setStyle('cursor', 'pointer'); // fallback
     eimg.setStyle('cursor', 'zoom-in');
