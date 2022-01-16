@@ -237,8 +237,16 @@ sub write_json
   for (qw(thumb blur date)) {
     $j->{$_} = $jh->{$_} if exists $jh->{$_};
   }
+  for (@{$ja}) {
+    my $file = $_->{file};
+    if ($file && ! -e $file) {
+      # stash original name in orig index so view/index.js will not show it but we can delete it from zipfile
+      $_->{orig} = $file;
+      delete $_->{file};
+    }
+  }
   if ($chronological == 0) {
-    $j->{data} = $jh->{data};
+    $j->{data} = $ja;
   } elsif ($chronological  < 0) {
     $j->{data} = [ sort { $b->{stamp} <=> $a->{stamp} } @{$jh->{data}}, @$ja ];
   } else {
@@ -1046,9 +1054,7 @@ for my $fdata (@$adata) {
   my $d = $sha->hexdigest();
   $sha->reset();
   $data{$alg} = $d;
-  $data{file} = $fdata->{file}[0];
-  push(@{$json{data}}, \%data)
-    unless (exists $ofiles->{$d}) && ($ofiles->{$d} = $data{stamp});
+  $data{file} = $file;
   # remove superfluous raw files
   my $keep = $include;
   unless ($keep || !$fullpano) {
@@ -1061,12 +1067,11 @@ for my $fdata (@$adata) {
     $keep = 1 if ($mp >= $omp) && ($mp > $amp) && (abs($x/$y) >= $panort);
   }
   unless ($keep) {
-    # stash the original name in orig when not keeping files to view in original
-    $data{orig} = $data{file};
-    delete $data{file};
     unlink($file);
     warn "Deleted raw file '$file' (see -i and -k options)\n" if $verbose > 1;
   }
+  push(@{$json{data}}, \%data)
+    unless (exists $ofiles->{$d}) && ($ofiles->{$d} = $data{stamp});
 }
 write_json('data.json', \%json, $odata->{data});
 
