@@ -93,14 +93,11 @@ my $startslideshow = 'no';
 my %copy_method = (
   copy => '',
   hard => '--link',
-  sym  => '--symbolic-link',
+  syml => '--symbolic-link',
 );
-my $copy_method = 'copy';
-if ($^O =~ m{bsd$}oi) {
-  $copy_method = 'sym';
-} else {
-  $copy_method{ref} = '--reflink';
-}
+$copy_method{ref} = '--reflink' if $^O =~ m{linux$}oi;
+my $copy_method_view = 'syml';
+my $copy_method_orig = 'copy';
 my $files_dir = join '_', $me, "v$VERSION", 'files';
 my $fdownload = catfile($files_dir, $files_dir . '.zip');
 my $alg = 'sha256';
@@ -171,7 +168,7 @@ sub do_copy
   if ($^O =~ m{bsd$}oi) {
     if ($t eq 'hard') {
       @cmd = ('ln');
-    } elsif ($t eq 'sym') {
+    } elsif ($t eq 'syml') {
       @cmd = ('ln', '-s');
     } elsif ($t eq 'copy') {
       @cmd = ('cp');
@@ -188,8 +185,8 @@ sub copy_source_file
 {
   my ($file, $fout) = @_;
   # symlinks need the right dest path so just give them an abs path
-  $file = rel2abs($file) if $copy_method eq 'sym';
-  do_copy($copy_method, $file, $fout);
+  $file = rel2abs($file) if $copy_method_orig eq 'syml';
+  do_copy($copy_method_orig, $file, $fout);
 }
 
 sub is_a_gallery
@@ -438,10 +435,9 @@ sub parse_captions
 sub parse_copy_method
 {
   my ($o, $v) = @_;
-  $v = $copy_method unless $v;
   fatal "'$v' not a copy method; use one of "
         . join ', ', sort keys %copy_method
-    unless exists $copy_method{$v};
+    unless $v && exists $copy_method{$v};
   return $v;
 }
 
@@ -462,6 +458,7 @@ sub current_imgs
 
 sub print_help
 {
+  my $cpmethods = join ', ', sort keys %copy_method;
   warn qq{Usage: $me [options] INPUT_DIR [OUTPUT_DIR]
   -h, --help            this help
   -v                    verbosity (repeat for more detail)
@@ -484,7 +481,8 @@ sub print_help
   --no-sRGB             do not remap preview/thumbnail color profiles to sRGB
   --quality Q           preview image quality (0-100, currently: $imgq)
   --startslideshow      gallery URLs will immediately start slide show
-  --link-orig           copy method (hard,sym,ref,copy); default: $copy_method
+  --link-orig           copy method ($cpmethods); default: $copy_method_orig
+  --link-view           copy method ($cpmethods); default: $copy_method_view
   --viewdir             CSS/JavaScript srcdir ($viewdir)
   --index url           URL location for the index/back button
   --version             output current $me version ($VERSION)
@@ -525,7 +523,8 @@ my ($rc, @ARGS) = GetOptions(
   'title=s' => \$galleryTitle,
   'description=s' => \$galleryDescription,
   'url=s' => \$galleryUrl,
-  'link-orig:s' => sub { $copy_method = parse_copy_method($_[0], $_[1]); },
+  'link-orig:s' => sub { $copy_method_orig = parse_copy_method($_[0], $_[1]); },
+  'link-view:s' => sub { $copy_method_view = parse_copy_method($_[0], $_[1]); },
   'viewdir:s' => \$viewdir,
   'startslideshow' => sub { $startslideshow = 'yes'; },
 );
@@ -1078,7 +1077,7 @@ rmdir($files_dir);
 my $vdir = 'view';
 remove_tree($vdir) if $updating;
 unless (-d $vdir) {
-  if ($copy_method eq 'sym') {
+  if ($copy_method_view eq 'syml') {
     sys('ln', '-s', $viewdir, '.');
    } else {
     sys('cp', '-LR', $viewdir, '.');
