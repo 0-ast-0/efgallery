@@ -494,9 +494,9 @@ function setupHeader()
   }
   h += "\nPrevious Image            ← | P | p ";
   h += "\nNext Image                  → | N | n ";
-  h += "\nFaster Slideshow         ↑ | F | f ";
-  h += "\nSlower Slideshow        ↓ | S | s ";
-  h += "\nNormal Speed (5s)      5 ";
+  h += "\nFaster Slideshow         ↑ | F | f  (Step 1/2 s) ";
+  h += "\nSlower Slideshow        ↓ | S | s  (Step 1/2 s) ";
+  h += "\nSpeed in Seconds       0 .. 9 (Default at start 5s) ";
   h += "\nToggle Direction          Delete | Backspace | R | r ";
   var el = new Element('span', { 'title': h, 'html': '?' });
   ehdr.adopt(el);
@@ -836,7 +836,19 @@ function initGallery(data)
 
   window.addEvent('keydown', function(ev)
   {
-    if(ev.key == 'left')
+    var d = ev.key.match(/^(\d)$/);
+    if(d)
+    {
+      d = 1000 * parseInt(d);
+      ev.stop();
+      if (d)
+        idle.setTimeout(d);
+      else
+        idle.setTimeout(1000*60*60*24*7); // gaze at it for a week and it will seem eternity
+      if(slideshow != 'on')
+        toggleSlideshow();
+    }
+    else if(ev.key == 'left')
     {
       ev.stop();
       prev();
@@ -849,18 +861,13 @@ function initGallery(data)
     else if(ev.key == 'space')
     {
       ev.stop();
+      idle.setTimeout(slidedelay_default);
       toggleSlideshow();
     }
     else if(ev.key == 'R' || ev.key == 'r' || ev.key == 'delete' || ev.key == 'backspace')
     {
       ev.stop();
       slidereverse = slidereverse? false: true;
-    }
-    else if(ev.key == '5')
-    {
-      ev.stop();
-      slidedelay = slidedelay_default;
-      idle.setTimeout(slidedelay);
     }
     else if(ev.key == 'f' || ev.key == 'F' || ev.key == 'up')
     {
@@ -877,7 +884,7 @@ function initGallery(data)
     {
       ev.stop();
       slidedelay += slidedelay_step;
-      if (slidedelay>10*slidedelay_default) flash();
+      if (slidedelay>2*slidedelay_default) flash();
       idle.setTimeout(slidedelay);
     }
   });
