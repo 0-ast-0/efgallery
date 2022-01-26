@@ -39,7 +39,7 @@ use Fcntl;
 use File::Basename qw{fileparse};
 use File::Find qw{find};
 use File::Path qw{make_path remove_tree};
-use File::Spec::Functions qw{rel2abs canonpath catfile splitpath};
+use File::Spec::Functions qw{rel2abs abs2rel updir canonpath catfile splitpath};
 
 use Image::ExifTool qw{ImageInfo};
 use Time::Piece;
@@ -68,8 +68,8 @@ my %extensions = map { $_ => 1 } qw{jpg jpeg png tif tiff};
 my $ext = "jpg";
 my @minthumb = (150, 112);
 my @maxthumb = (267, 200);
-my @maxfull = (1600, 1200);
-my $imgq = 90;
+my @maxfull = (3840, 2160);
+my $imgquality = 90;
 my $fullpano = 1;
 my $offerzip = 1;
 my $panort = 2.;
@@ -98,8 +98,7 @@ my %copy_method = (
 $copy_method{ref} = '--reflink' if $^O =~ m{linux$}oi;
 my $copy_method_view = 'syml';
 my $copy_method_orig = 'copy';
-my $files_dir = join '_', $me, "v$VERSION", 'files';
-my $fdownload = catfile($files_dir, $files_dir . '.zip');
+my $albumzip = catfile('files', 'album.zip');
 my $alg = 'sha256';
 my $sha = Digest::SHA->new($alg);
 my $odata = { data => [] };
@@ -135,28 +134,51 @@ sub dump_properties
   my ($x) = @_;
   my $i = 0;
   for (@$x) {
-    die "dump_properties: props element $i not a HASH but ", ref $_ unless ref $_ eq 'HASH';
-    my %h = %$_;                        # make a copy to leave original intact
-    delete $h{ThumbnailImage};          # when called with aprops
-    delete $h{props}->{ThumbnailImage}; # when called with adata
-    warn Data::Dumper->Dump([\%h], ["props[$i]"]), "\n";
-    $i++;
+    next unless $_;
+    if (ref $_ eq 'HASH') {
+      my %h = %$_;                        # make a copy to leave original intact
+      delete $h{ThumbnailImage};          # when called with aprops
+      delete $h{props}->{ThumbnailImage}; # when called with adata
+      warn Data::Dumper->Dump([\%h], ["props[$i]"]), "\n";
+      $i++;
+    } else {
+      warn "dump_properties: i=$i, value '$_' (should be a HASH)\n";
+    }
   }
   1;
 }
 
-sub sys
+sub _sys
 {
-  my @cmd = @_;
+  my ($with_output, @cmd) = @_;
   my $cmd = join ' ', @cmd;
   warn "+ $cmd\n" if $verbose > 1;
-  my $fd;
-  open($fd, '-|', @cmd) || fatal "cannot execute $cmd: $!";
-  local $/ = undef;
-  my $o = <$fd>;
-  close($fd) || fatal "close failed on $cmd: $!";
-  return split(m{\n+}o, $o);
+  my $i = 0;
+  my @s = ();
+  while (my $x = (caller($i))[3]) {
+    push @s, "  $x line " .  (caller($i))[2];
+    $i++;
+  }
+  @s = reverse (@s, '  Current directory: ' . rel2abs('.'));
+  my ($fd, @o);
+  if (!open($fd, '-|', @cmd)) {
+    warn join "\n", @s, "  Cannot execute $cmd: $!" if $verbose;
+    return $with_output ? (255, []) : 255;
+  } else {
+    local $/ = undef;
+    my $o = <$fd>;
+    @o = split(m{\n+}o, $o);
+    if (!close($fd)) {
+      warn join "\n", @s, "  Close failed on $cmd: $!", @o if $verbose;
+      return $with_output ? (254, \@o) : 254;
+    }
+  }
+  my $x = "$cmd succeeded; with following output:";
+  warn map { sprintf "  %s\n", $_ } $x, @o if @o && $verbose > 2;
+  return $with_output ? (0, \@o) : 0;
 }
+sub sys             { _sys(0, @_); }
+sub sys_with_output { _sys(1, @_); }
 
 sub do_copy
 # OS-specific handling of cp and ln commands
@@ -240,7 +262,7 @@ sub write_json
   for (@{$ja}) {
     my $file = $_->{file};
     if ($file && ! -e $file) {
-      # stash original name in orig index so view/index.js will not show it but we can delete it from zipfile
+      # original name in zipfile but view/index.js will not display it
       $_->{orig} = $file;
       delete $_->{file};
     }
@@ -257,7 +279,7 @@ sub write_json
   $j->{timestamp} = time();
   $j->{timecreated} = sprintf "%s", scalar localtime $j->{timestamp};
   $j->{name} = $name if $name;
-  $j->{download} = $fdownload if $zipfile && -f $zipfile;
+  $j->{download} = $albumzip if $zipfile && -f $zipfile;
   $j->{index} = $indexUrl if $indexUrl;
   my $json = JSON::PP->new->ascii->pretty->canonical->encode($j);
   print $fd $json;
@@ -302,10 +324,7 @@ sub run_in_parallel
     },
     0 .. $n-1
   );
-  return [ map {
-    defined $_ ? thaw $_
-               : fatal "Thread failed in function '$fn'; cannot proceed"
-  } @res ];
+  return [ map { defined $_ ? thaw $_ : undef } @res ];
 }
 
 sub min
@@ -487,7 +506,7 @@ sub print_help
   --max-thumb WxH       maximum thumbnail size ($maxthumb[0]x$maxthumb[1])
   --min-thumb WxH       minimum thumbnail size ($minthumb[0]x$minthumb[1])
   --no-sRGB             do not remap preview/thumbnail color profiles to sRGB
-  --quality Q           preview image quality (0-100, currently: $imgq)
+  --quality Q           preview image quality (0-100, currently: $imgquality)
   --startslideshow      gallery URLs will immediately start slide show
   --link-orig           copy method ($cpmethods); default: $copy_method_orig
   --link-view           copy method ($cpmethods); default: $copy_method_view
@@ -526,7 +545,7 @@ my ($rc, @ARGS) = GetOptions(
   'max-full=s' => sub { @maxfull = parse_wh(@_); },
   'max-thumb=s' => sub { @maxthumb = parse_wh(@_); },
   'min-thumb=s' => sub { @minthumb = parse_wh(@_); },
-  'quality=i' => sub { $imgq = parse_int($_[0], $_[1], 0, 100); },
+  'quality=i' => sub { $imgquality = parse_int($_[0], $_[1], 0, 100); },
   'index=s' => \$indexUrl,
   'title=s' => \$galleryTitle,
   'description=s' => \$galleryDescription,
@@ -620,7 +639,7 @@ if ($updating) {
     unless -w _;
 }
 
-$zipfile = catfile($absOut, $fdownload);
+$zipfile = catfile($absOut, $albumzip);
 if ($updating && $offerzip) {
   if (! -f $zipfile) {
     warn "Original zip file '$zipfile' missing: will not create one when updating (see -d option)\n";
@@ -691,14 +710,14 @@ if (-f $json_file) {
 } else {
   # cleanup target paths
   fatal "No $json_file file found, cannot update" if $updating;
-  for ( qw(thumbs blurs imgs), $files_dir ) {
+  for ( qw(thumbs blurs imgs files) ) {
     remove_tree(catfile($absOut, $_));
     make_path(catfile($absOut, $_));
   }
 }
 
 # now that $absOut definitely exists, do all work there
-chdir $absOut || fatal "Failed to 'cd $absOut' for $me album creation";
+chdir($absOut) || fatal "Failed to 'cd $absOut' for $me album creation: $!";
 
 # disable sub-process parallelism when threading ourselves
 $workers = @files if $workers > @files;
@@ -797,6 +816,8 @@ if (@files) {
     if ( defined $aprops->[$n] ) {
       push @nf, $_;
       push @na, $aprops->[$n];
+    } else {
+      warn "Image '$_' failed analysis - skipping\n";
     }
     $n++;
   }
@@ -867,7 +888,7 @@ sub process_img
   my $file = $props{file};
 
   # derived file names
-  my $ffile = catfile($files_dir, "$root.$suffix");
+  my $ffile = catfile('files', "$root.$suffix");
   my $fbase = "$root.$ext";
   my $fimg = catfile('imgs', $fbase);
   my $fthumb = catfile('thumbs', $fbase);
@@ -878,25 +899,25 @@ sub process_img
 
   progress::status($fbase);
 
-  # copy source image, apply optimizations unless suppressed, set mode and file timestamp
-  copy_source_file($file, $absFout);
+  # copy source image, optimize unless suppressed, set mode and file timestamp
+  return if copy_source_file($file, $absFout);
   if ($optimize || $orient) {
     if ($orient && $props{FileType} eq "JPEG" && ($props{Orientation} // 0)) {
-      sys("$exiftrancmd '$absFout' 2>/dev/null");
+      return if sys("$exiftrancmd '$absFout' 2>&1");
       if (($props{Orientation} // 0) > 4) {
         ($props{ImageWidth}, $props{ImageHeight})
           = ($props{ImageHeight}, $props{ImageWidth});
       }
     }
     if ($optimize_jpg && $props{FileType} eq "JPEG") {
-      sys('jpegoptim', '-q', $absFout);
+      return if sys('jpegoptim', '-q', $absFout);
     } elsif ($optimize_png && $props{FileType} eq "PNG") {
-      sys('pngcrush', '-q', $absFout, $absFtmp);
+      return if sys('pngcrush', '-q', $absFout, $absFtmp);
       rename($absFtmp, $absFout);
     }
   }
   chmod($filemode, $absFout);
-  sys('touch', '-r', $file, $absFout);
+  sys('touch', '-r', $file, $absFout); # ignore errors
 
   # intermediate sRGB colorspace conversion
   if ( !$sRGB || !defined($props{ProfileID})
@@ -904,30 +925,30 @@ sub process_img
               || ($props{DeviceModel} // '') eq 'sRGB') {
     $absFtmp = $absFout;
   } else {
-    sys('convert', '-quiet', $absFout, '-compress', 'LZW',
-                   '-type', 'truecolor', "tiff:$absFtmp");
-    sys($tificccmd, '-t0', $absFtmp, "$absFtmp.tmp");
+    return if sys('convert', '-quiet', $absFout, '-compress', 'LZW', '-type', 'truecolor', "tiff:$absFtmp");
+    return if sys($tificccmd, '-t0', $absFtmp, "$absFtmp.tmp");
     rename("$absFtmp.tmp", $absFtmp);
   }
 
   # generate main image
   my @sfile = ($props{ImageWidth}, $props{ImageHeight});
-  my @simg = sys('convert', '-quiet', $absFtmp,
-                 '-gamma', '0.454545',
-                 '-geometry', "$maxfull[0]x$maxfull[1]>",
-                 '-print', '%w\n%h',
-                 '-gamma', '2.2',
-                 '+profile', '!icc,*',
-                 '-quality', $imgq, catfile($absOut, $fimg)
-             );
+  my @cmd = ('convert', '-quiet', $absFtmp, '-gamma', '0.454545',
+          '-geometry', "$maxfull[0]x$maxfull[1]>",
+          '-print', '%w\n%h', '-gamma', '2.2', '+profile', '!icc,*',
+          '-quality', $imgquality, catfile($absOut, $fimg)
+  );
+  my ($rc, $simg) = sys_with_output(@cmd);
+  return if $rc;
 
   # face/center detection
   my @center = (0.5, 0.5);
   if ($facedetect) {
-    my @f = sys("facedetect", "--best", "--center", catfile($absOut, $fimg));
-    for (@f) {
+    my @cmd = ('facedetect', '--best', '--center', catfile($absOut, $fimg));
+    my ($rc, $o) = sys_with_output(@cmd);
+    return if $rc;
+    for (@$o) {
       if (my @tmp = /(\d+) (\d+) (\d+) (\d+)/) {
-	@center = ($tmp[0] / $simg[0], $tmp[1] / $simg[1]);
+	@center = ($tmp[0] / $simg->[0], $tmp[1] / $simg->[1]);
 	last;
       }
     }
@@ -951,27 +972,31 @@ sub process_img
   my $dy = $sthumb[1] - $mthumb[1];
   my $cy = pmin($dy, int($center[1] * $sthumb[1] - $sthumb[1] / 2 + $dy / 2));
 
-  sys('convert', '-quiet', $absFtmp,
-      '-gamma', '0.454545',
-      '-resize', "$sthumb[0]x$sthumb[1]!",
-      '-gravity', 'NorthWest',
-      '-crop', "$mthumb[0]x$mthumb[1]+$cx+$cy",
-      '-gamma', '2.2',
-      '+profile', '!icc,*',
-      '-quality', $imgq, catfile($absOut, $fthumb)
-  );
+  return if sys('convert', $absFtmp,
+                ($verbose > 1 ? () : '-quiet'),
+                '-gamma', '0.454545',
+                '-resize', "$sthumb[0]x$sthumb[1]!",
+                '-gravity', 'NorthWest',
+                '-crop', "$mthumb[0]x$mthumb[1]+$cx+$cy",
+                '-gamma', '2.2',
+                '-quality', $imgquality,
+                '+profile', '!icc,*',
+                $fthumb,
+              );
 
-  # blur
-  sys('convert', '-quiet', catfile($absOut, $fthumb),
-      '-virtual-pixel', 'Mirror',
-      '-gaussian-blur', "0x$backblur",
-      '-scale', "$backsize[0]x$backsize[1]",
-      '-quality', '90', catfile($absOut, $fblur)
-   ) if $do_blur;
+  return if $do_blur
+         && sys('convert', $fthumb,
+                ($verbose > 1 ? () : '-quiet'),
+                '-virtual-pixel', 'Mirror',
+                '-gaussian-blur', "0x$backblur",
+                '-scale', "$backsize[0]x$backsize[1]",
+                '-quality', '90',
+                $fblur,
+              );
 
   my %fdata;
   $fdata{props} = \%props;
-  $fdata{img} = [$fimg, [map { int } @simg]];
+  $fdata{img} = [$fimg, [map { int } @$simg]];
   $fdata{file} = [$ffile, [map { int } @sfile]];
   $fdata{blur} = $fblur if $do_blur;
 
@@ -1009,28 +1034,56 @@ if (@$aprops) {
 # create or update the album zip file
 if ($offerzip) {
   if ($adata && @$adata) {
-    # filenames relative to $absOut, i.e. efgallery_files/foo.jpg
-    my @f = map { $_->{file}[0] } @$adata;
-    if ($p7zip) {
-      my $mt = $workers ? "-mmt=$workers" : '';
-      sys('7za', '-tzip', $mt, 'a', '--', $zipfile, @f);
-    } else {
-      my $v = '';
-      $v = '-v' if $verbose;
-      sys('zip', '-q9j', $v, $zipfile, @f);
+    my @f = ();
+    chdir('files') || fatal "Failed to cd to files subdirectory for zipping";
+    for (@$adata) {
+      # files that failed analysis are undefined in @$adata
+      next unless $_;
+      my $f = (splitpath($_->{file}[0]))[2];
+      if ( $f && -f $f && -r _) {
+        push @f, $f;
+      } else {
+        warn "No file '$f' in files subdir - not adding to $zipfile\n";
+      }
     }
+    warn "Adding following images to $albumzip:\n",
+      map { sprintf "  $_\n" } @f if $verbose > 1;
+    my $rc;
+    if ($p7zip) {
+      my @v = $verbose > 2 ? ('-bb3', '-bt')
+            : $verbose > 1 ? ('-bb2', '-bt')
+            : $verbose ?     ('-bb1', '-bt')
+            :                ('-bb0');
+      my $mt = $workers ? "-mmt=$workers" : '';
+      $rc = sys('7za', '-tzip', @v, $mt, 'a', '--', $zipfile, @f);
+    } else {
+      my $v = $verbose ? '-v' : '-q';
+      $rc = sys('zip', '-q9j', $v, $zipfile, @f);
+    }
+    fatal "Failed to create $albumzip (rc=$rc)" if $rc;
     warn sprintf "Updated %s with %d image files\n", $zipfile, scalar @f;
+    chdir($absOut) || fatal "Failed to cd to $absOut after zipping: $!";
   }
 } else {
   unlink $zipfile;
 }
 if (@deleted && -f $zipfile) {
+  # @deleted refers to file/IMAGE.jpg but zipfile simply calls it IMAGE.jpg
+  my @del = map { (splitpath($_))[2] } @deleted;
+  warn "Deleting - if present - following files from $albumzip:\n",
+        map { sprintf "  $_\n" } @del if $verbose > 1;
   if ($p7zip) {
-    sys('7za', '-tzip', 'd', '--', $zipfile, @deleted);
+    my @v = $verbose > 2 ? ('-bb3', '-bt')
+          : $verbose > 1 ? ('-bb2', '-bt')
+          : $verbose ?     ('-bb1', '-bt')
+          : ();
+    $rc = sys('7za', '-tzip', @v, 'd', '--', $zipfile, @del);
   } else {
-    sys('zip', '-q9j', '-d', $zipfile, @deleted);
+    my $v = $verbose ? '-v' : '-q';
+    $rc = sys('zip', '-q9j', '-d', $zipfile, @del);
   }
-  warn sprintf "Removed %d image files from %s\n", scalar @deleted, $zipfile;
+  fatal "Failed to update $albumzip (rc=$rc)" if $rc;
+  warn sprintf "Removed %d image files from %s\n", scalar @del, $zipfile;
 }
 
 # prepare and write out the new data.json
@@ -1040,6 +1093,7 @@ my %json = (
 );
 $json{blur} = \@backsize if $do_blur;
 for my $fdata (@$adata) {
+  next unless $fdata;
   my %data;
   for ( qw(img thumb blur center) ) {
     $data{$_} = $fdata->{$_} if defined $fdata->{$_};
@@ -1076,17 +1130,19 @@ for my $fdata (@$adata) {
 write_json('data.json', \%json, $odata->{data});
 
 # remove the files directory when empty
-rmdir($files_dir);
+rmdir('files');
 
 # (re-)setup copy/link of view subdirectory
 my $vdir = 'view';
 remove_tree($vdir) if $updating;
 unless (-d $vdir) {
+  my $rc;
   if ($copy_method_view eq 'syml') {
-    sys('ln', '-s', $viewdir, '.');
+    $rc = sys('ln', '-s', $viewdir, '.');
    } else {
-    sys('cp', '-LR', $viewdir, '.');
+    $rc = sys('cp', '-LR', $viewdir, '.');
   }
+  fatal "Failed to cp ($copy_method_view) $viewdir" if $rc;
 }
 # craft the index.html contents from the actual data.json file
 my $html = qq{\n    <div id="photos" } .
