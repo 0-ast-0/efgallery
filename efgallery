@@ -598,8 +598,8 @@ if ($out) {
 for (qw(cp ln mv touch)) {
   fatal "Command '$_' missing" unless cmd_exists($_);
 }
-fatal 'Missing convert executable (from ImageMagick)'
-  unless cmd_exists('convert');
+fatal 'Missing magick executable (from ImageMagick)'
+  unless cmd_exists('magick');
 if ($offerzip) {
   if (!cmd_exists('7za')) {
     $p7zip = 0;
@@ -925,14 +925,14 @@ sub process_img
               || ($props{DeviceModel} // '') eq 'sRGB') {
     $absFtmp = $absFout;
   } else {
-    return if sys('convert', '-quiet', $absFout, '-compress', 'LZW', '-type', 'truecolor', "tiff:$absFtmp");
+    return if sys('magick', '-quiet', $absFout, '-compress', 'LZW', '-type', 'truecolor', "tiff:$absFtmp");
     return if sys($tificccmd, '-t0', $absFtmp, "$absFtmp.tmp");
     rename("$absFtmp.tmp", $absFtmp);
   }
 
   # generate main image
   my @sfile = ($props{ImageWidth}, $props{ImageHeight});
-  my @cmd = ('convert', '-quiet', $absFtmp, '-gamma', '0.454545',
+  my @cmd = ('magick', '-quiet', $absFtmp, '-gamma', '0.454545',
           '-geometry', "$maxfull[0]x$maxfull[1]>",
           '-print', '%w\n%h', '-gamma', '2.2', '+profile', '!icc,*',
           '-quality', $imgquality, catfile($absOut, $fimg)
@@ -972,7 +972,7 @@ sub process_img
   my $dy = $sthumb[1] - $mthumb[1];
   my $cy = pmin($dy, int($center[1] * $sthumb[1] - $sthumb[1] / 2 + $dy / 2));
 
-  return if sys('convert', $absFtmp,
+  return if sys('magick', $absFtmp,
                 ($verbose > 1 ? () : '-quiet'),
                 '-gamma', '0.454545',
                 '-resize', "$sthumb[0]x$sthumb[1]!",
@@ -985,7 +985,7 @@ sub process_img
               );
 
   return if $do_blur
-         && sys('convert', $fthumb,
+         && sys('magick', $fthumb,
                 ($verbose > 1 ? () : '-quiet'),
                 '-virtual-pixel', 'Mirror',
                 '-gaussian-blur', "0x$backblur",
