@@ -1,4 +1,4 @@
-#!/usr/pkg/bin/perl
+#!/usr/bin/env perl
 # Generate a refined photo album in HTML/CSS and optional JavaScript
 #
 # Maintained by Adrian Steinmann <ast@NetBSD.org>
@@ -972,11 +972,14 @@ sub process_img
   if ($facedetect) {
     my @cmd = ('facedetect', '--best', '--center', catfile($absOut, $fimg));
     my ($rc, $o) = sys_with_output(@cmd);
-    return if $rc;
-    for (@$o) {
-      if (my @tmp = /(\d+) (\d+) (\d+) (\d+)/) {
-	@center = ($tmp[0] / $simg->[0], $tmp[1] / $simg->[1]);
-	last;
+    if ($rc) {
+      warn  join ' ', @cmd, "failed (rc=$rc) - centering 50/50" if $verbose;
+    } else {
+      for (@$o) {
+        if (my @tmp = /(\d+) (\d+) (\d+) (\d+)/) {
+          @center = ($tmp[0] / $simg->[0], $tmp[1] / $simg->[1]);
+          last;
+        }
       }
     }
   }
@@ -1068,6 +1071,7 @@ if ($offerzip) {
     chdir('files') || fatal "Failed to cd to files subdirectory for zipping";
     for (@$adata) {
       # files that failed analysis are undefined in @$adata
+      warn Data::Dumper->Dump(['adata _',$_]) if $verbose > 3;
       next unless $_;
       my $f = (splitpath($_->{file}[0]))[2];
       if ( $f && -f $f && -r _) {
