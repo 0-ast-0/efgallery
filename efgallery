@@ -55,11 +55,13 @@ my $me = (splitpath($0))[2];
 use FindBin qw($Bin);
 # view subdirectory where the JavaScript and CSS lives
 my $viewdir = catfile((splitpath($Bin))[1], 'share', $me, 'view');
+
 umask oct('0022');
 
 # defaults
 my $facedetect_url = 'http://www.thregr.org/~wavexx/hacks/facedetect/';
 my $filemode = oct('0644');
+my $dirmode  = oct('0755');
 my $include = 0;
 my $orient = 1;
 my $chronological = 1;
@@ -211,6 +213,25 @@ sub copy_source_file
   do_copy($copy_method_orig, $file, $fout);
 }
 
+# explicitly enforce world-readable permissions.
+# umask(0022) set at the top already covers files created via open(),
+# but it does NOT protect against: cp propagating a restrictive source
+# mode, pre-existing files keeping an old (wrong) mode when rewritten,
+# or subprocess-created files inheriting unexpected modes.
+sub set_file_mode
+{
+  my ($file) = @_;
+  chmod($filemode, $file)
+    || warn "Warning: cannot chmod '$file' to 0644: $!\n";
+}
+
+sub set_dir_mode
+{
+  my ($dir) = @_;
+  chmod($dirmode, $dir)
+    || warn "Warning: cannot chmod '$dir' to 0755: $!\n";
+}
+
 sub is_a_gallery
 {
     my ($d) = @_;
@@ -285,6 +306,7 @@ sub write_json
   print $fd $json;
   warn "New file $f:\n$json" if $verbose > 1;
   if (close($fd)) {
+      set_file_mode($f);
       warn "Wrote new $f\n";
       return $f;
   }
@@ -711,12 +733,16 @@ if (-f $json_file) {
   # cleanup target paths
   fatal "No $json_file file found, cannot update" if $updating;
   for ( qw(thumbs blurs imgs files) ) {
-    remove_tree(catfile($absOut, $_));
-    make_path(catfile($absOut, $_));
+    my $d = catfile($absOut, $_);
+    remove_tree($d);
+    make_path($d, {mode => $dirmode});
+    set_dir_mode($d);
   }
 }
 
 # now that $absOut definitely exists, do all work there
+make_path($absOut, {mode => $dirmode}) unless -d $absOut;
+set_dir_mode($absOut);
 chdir($absOut) || fatal "Failed to 'cd $absOut' for $me album creation: $!";
 
 # disable sub-process parallelism when threading ourselves
@@ -916,7 +942,7 @@ sub process_img
       rename($absFtmp, $absFout);
     }
   }
-  chmod($filemode, $absFout);
+  set_file_mode($absFout);
   sys('touch', '-r', $file, $absFout); # ignore errors
 
   # intermediate sRGB colorspace conversion
@@ -939,6 +965,7 @@ sub process_img
   );
   my ($rc, $simg) = sys_with_output(@cmd);
   return if $rc;
+  set_file_mode(catfile($absOut, $fimg));
 
   # face/center detection
   my @center = (0.5, 0.5);
@@ -983,16 +1010,19 @@ sub process_img
                 '+profile', '!icc,*',
                 $fthumb,
               );
+  set_file_mode(catfile($absOut, $fthumb));
 
-  return if $do_blur
-         && sys('magick', $fthumb,
-                ($verbose > 1 ? () : '-quiet'),
-                '-virtual-pixel', 'Mirror',
-                '-gaussian-blur', "0x$backblur",
-                '-scale', "$backsize[0]x$backsize[1]",
-                '-quality', '90',
-                $fblur,
-              );
+  if ($do_blur) {
+    return if sys('magick', $fthumb,
+                  ($verbose > 1 ? () : '-quiet'),
+                  '-virtual-pixel', 'Mirror',
+                  '-gaussian-blur', "0x$backblur",
+                  '-scale', "$backsize[0]x$backsize[1]",
+                  '-quality', '90',
+                  $fblur,
+                );
+    set_file_mode(catfile($absOut, $fblur));
+  }
 
   my %fdata;
   $fdata{props} = \%props;
@@ -1061,6 +1091,7 @@ if ($offerzip) {
       $rc = sys('zip', '-q9j', $v, $zipfile, @f);
     }
     fatal "Failed to create $albumzip (rc=$rc)" if $rc;
+    set_file_mode($zipfile);
     warn sprintf "Updated %s with %d image files\n", $zipfile, scalar @f;
     chdir($absOut) || fatal "Failed to cd to $absOut after zipping: $!";
   }
@@ -1141,6 +1172,14 @@ unless (-d $vdir) {
     $rc = sys('ln', '-s', $viewdir, '.');
    } else {
     $rc = sys('cp', '-LR', $viewdir, '.');
+    # the cp -LR copy inherits the modes of the installed view tree;
+    # normalize them so the gallery is world-readable
+    find({
+      no_chdir => 1,
+      wanted => sub {
+        chmod((-d $_ ? $dirmode : $filemode), $_);
+      }
+    }, $vdir) unless $rc;
   }
   fatal "Failed to cp ($copy_method_view) $viewdir" if $rc;
 }
@@ -1205,6 +1244,7 @@ open($fd, ">:encoding($ENCODING)", $index)
   || fatal "cannot write $index: $!";
 print $fd $indexhtml;
 if (close $fd) {
+  set_file_mode($index);
   warn "Wrote new $index\n";
 } else {
   fatal "Failed to write new $index: $!\n";
@@ -1217,9 +1257,10 @@ for (split m{\n+}o, $indexhtml) {
   print $fd $_, "\n";
 }
 if (close $fd) {
+  set_file_mode($noscript);
   warn "Wrote new $noscript\n";
 } else {
-  fatal "Failed to write new $noscript: $!\n";
+  fatal "Failed to write $noscript: $!\n";
 }
 
 print sprintf "%s version %s %s gallery in %s\n",
