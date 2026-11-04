@@ -16,7 +16,7 @@ use v5.14;
 use strict;
 use warnings;
 
-our $VERSION = "2.5";
+our $VERSION = "2.6";
 
 use locale;
 use utf8;
@@ -39,7 +39,7 @@ use Fcntl;
 use File::Basename qw{fileparse};
 use File::Find qw{find};
 use File::Path qw{make_path remove_tree};
-use File::Spec::Functions qw{rel2abs abs2rel updir canonpath catfile splitpath};
+use File::Spec::Functions qw{rel2abs canonpath catfile splitpath};
 
 use Image::ExifTool qw{ImageInfo};
 use Time::Piece;
@@ -59,11 +59,11 @@ my $viewdir = catfile((splitpath($Bin))[1], 'share', $me, 'view');
 umask oct('0022');
 
 # defaults
-my $facedetect_url = 'http://www.thregr.org/~wavexx/hacks/facedetect/';
+my $facedetect_url = 'www.thregr.org/~wavexx/hacks/facedetect/';
 my $filemode = oct('0644');
 my $dirmode  = oct('0755');
 my $include = 0;
-my $orient = 1;
+my $auto_orient = 0;
 my $chronological = 1;
 my %filetypes = map { $_ => 1 } qw{JPEG PNG TIFF};
 my %extensions = map { $_ => 1 } qw{jpg jpeg png tif tiff};
@@ -513,7 +513,7 @@ sub print_help
   -v                    verbosity (repeat for more detail)
   -i                    include individual original image files
   -c "METHODS"          caption extraction methods (txt,xmp,exif,cmt,none)
-  -o                    do not auto-orient images
+  -o                    auto-orient images (requires exiftran or exifautotran)
   -k                    use original images (do not pngcrush/jpegoptim/auto-orient)
   -t                    sort alphabetically (default is to sort chronologically)
   -r                    album images in reverse chronological order (newest first)
@@ -554,7 +554,7 @@ my ($rc, @ARGS) = GetOptions(
   'f' => sub { $facedetect = 1; },
   'i' => sub { $include = 1; },
   'j=i' => sub { $workers = parse_int($_[0], $_[1], 1, undef); },
-  'o' => sub { $orient = 0; },
+  'o' => sub { $auto_orient = 1; },
   'k' => sub { $optimize = 0; },
   'n=s' => \$name,
   'p' => sub { $fullpano = 0; },
@@ -620,37 +620,46 @@ if ($out) {
 for (qw(cp ln mv touch)) {
   fatal "Command '$_' missing" unless cmd_exists($_);
 }
+
 fatal 'Missing magick executable (from ImageMagick)'
   unless cmd_exists('magick');
+
+fatal 'Missing tificc executable (from lcms2 library); try --no-sRGB option'
+  if $sRGB && !cmd_exists('tificc');
+
+my $tificccmd = 'tificc';
 if ($offerzip) {
   if (!cmd_exists('7za')) {
     $p7zip = 0;
     cmd_exists('zip') || fatal "Missing '7z' or 'zip' command; try -d option"
   }
 }
+
 if (!cmd_exists('jpegoptim')) {
   $optimize_jpg = 0;
   warn "Command jpegoptim missing - will not optimize JPEG images (see also -k option)\n"
     if $verbose;
 }
+
 if (!cmd_exists('pngcrush')) {
   $optimize_png = 0;
   warn "Command pngcrush missing - will not optimize PNG images (see also -k option)\n"
     if $verbose;
 }
-fatal "Missing facedetect (see $facedetect_url); cannot use -f option"
-  if $facedetect && !cmd_exists('facedetect');
-fatal 'Missing tificc executable (from lcms2 library); try --no-sRGB option'
-  if $sRGB && !cmd_exists('tificc');
-my $tificccmd = 'tificc';
+
+while ($facedetect) {
+  last if cmd_exists('facedetect');
+  warn "Missing facedetect (see $facedetect_url); ignoring -f option";
+  $facedetect = 0;
+}
+
 my $exiftrancmd;
-while($orient)
-{
+while ($auto_orient) {
   $exiftrancmd = "exiftran -aip" if cmd_exists('exiftran');
   last if $exiftrancmd;
   $exiftrancmd = "exifautotran" if cmd_exists('exifautotran');
-  fatal 'Missing exiftran or exifautotran executable for JPEG autorotation; try -o option'
-    unless $exiftrancmd;
+  warn 'Missing exiftran or exifautotran executable for JPEG rotation; will not auto-orient';
+  $auto_orient = 0;
 }
 
 if ($updating) {
@@ -927,8 +936,8 @@ sub process_img
 
   # copy source image, optimize unless suppressed, set mode and file timestamp
   return if copy_source_file($file, $absFout);
-  if ($optimize || $orient) {
-    if ($orient && $props{FileType} eq "JPEG" && ($props{Orientation} // 0)) {
+  if ($optimize || $auto_orient) {
+    if ($auto_orient && $props{FileType} eq "JPEG" && ($props{Orientation} // 0)) {
       return if sys("$exiftrancmd '$absFout' 2>&1");
       if (($props{Orientation} // 0) > 4) {
         ($props{ImageWidth}, $props{ImageHeight})
@@ -973,7 +982,7 @@ sub process_img
     my @cmd = ('facedetect', '--best', '--center', catfile($absOut, $fimg));
     my ($rc, $o) = sys_with_output(@cmd);
     if ($rc) {
-      warn  join ' ', @cmd, "failed (rc=$rc) - centering 50/50" if $verbose;
+      warn  join ' ', @cmd, "failed (rc=$rc) - not centering thumbnail" if $verbose;
     } else {
       for (@$o) {
         if (my @tmp = /(\d+) (\d+) (\d+) (\d+)/) {
@@ -1115,7 +1124,7 @@ if (@deleted && -f $zipfile) {
     $rc = sys('7za', '-tzip', @v, 'd', '--', $zipfile, @del);
   } else {
     my $v = $verbose ? '-v' : '-q';
-    $rc = sys('zip', '-q9j', '-d', $zipfile, @del);
+    $rc = sys('zip', '-q9j', $v, '-d', $zipfile, @del);
   }
   fatal "Failed to update $albumzip (rc=$rc)" if $rc;
   warn sprintf "Removed %d image files from %s\n", scalar @del, $zipfile;
@@ -1162,13 +1171,13 @@ for my $fdata (@$adata) {
   push(@{$json{data}}, \%data)
     unless (exists $ofiles->{$d}) && ($ofiles->{$d} = $data{stamp});
 }
-write_json('data.json', \%json, $odata->{data});
+write_json(catfile($absOut, 'data.json'), \%json, $odata->{data});
 
 # remove the files directory when empty
-rmdir('files');
+rmdir(catfile($absOut, 'files'));
 
 # (re-)setup copy/link of view subdirectory
-my $vdir = 'view';
+my $vdir = catfile($absOut, 'view');
 remove_tree($vdir) if $updating;
 unless (-d $vdir) {
   my $rc;
@@ -1217,7 +1226,7 @@ for (@{$adata->{data}}) {
 $html .= qq{\n\t</div>\n};
 $html .= qq{    </div>\n};
 $html .= qq{    };
-my $indexhtml = slurp('view/index.html');
+my $indexhtml = slurp(catfile($absOut, 'view', 'index.html'));
 $indexhtml =~ s@<noscript>.*?</noscript>@<noscript>$html</noscript>@s;
 # include the optional social media decoration
 if ($galleryTitle && $galleryDescription && $galleryUrl) {
@@ -1241,7 +1250,7 @@ if ($galleryTitle && $galleryDescription && $galleryUrl) {
 }
 
 # and finally, write out the new index.html and noscript.html files
-my $index = 'index.html';
+my $index = catfile($absOut, 'index.html');
 unlink($index);
 my $fd;
 open($fd, ">:encoding($ENCODING)", $index)
@@ -1253,7 +1262,7 @@ if (close $fd) {
 } else {
   fatal "Failed to write new $index: $!\n";
 }
-my $noscript = 'noscript.html';
+my $noscript = catfile($absOut, 'noscript.html');
 open($fd, ">:encoding($ENCODING)", $noscript)
   || fatal "cannot write $noscript: $!";
 for (split m{\n+}o, $indexhtml) {
@@ -1264,7 +1273,7 @@ if (close $fd) {
   set_file_mode($noscript);
   warn "Wrote new $noscript\n";
 } else {
-  fatal "Failed to write $noscript: $!\n";
+  fatal "Failed to write new $noscript: $!\n";
 }
 
 print sprintf "%s version %s %s gallery in %s\n",
