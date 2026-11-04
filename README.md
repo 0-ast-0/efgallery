@@ -33,7 +33,7 @@ requirements on the web server or browser.
 
 This github repository will serve to cherry pick features coming
 from the other fgallery versions out there and is the master site
-for the [pkgsrc package](http://pkgsrc.se/wip/efgallery/).
+for the [pkgsrc package](https://pkgsrc.se/wip/efgallery/).
 
 ## Usage
 
@@ -175,8 +175,8 @@ captions in this format.
 
 `XMP` or `EXIF` captions can be edited easily with many other image
 editing/previewing programs, such as
-[Darktable](http://www.darktable.org/) (which writes XMP sidecar files
-by default) or [Geeqie](http://geeqie.org/) (use `Ctrl+K` to bring up
+[Darktable](https://www.darktable.org/) (which writes XMP sidecar files
+by default) or [Geeqie](https://www.geeqie.org/) (use `Ctrl+K` to bring up
 the metadata editor).
 
 Both JPEG and PNG have a built-in comment field, but it's not read by
@@ -194,7 +194,7 @@ descriptions. Captions should *never* contain copyright information.
 Since every camera is different, and every monitor is different, some
 color transformation is necessary to reproduce the colors on your
 monitor as *originally* captured by the camera.
-[Color management](http://en.wikipedia.org/wiki/Color_management) is
+[Color management](https://en.wikipedia.org/wiki/Color_management) is
 an umbrella term for all the techniques required to perform this task.
 
 Most image-viewing software support color management to some degree,
@@ -252,39 +252,35 @@ Frontend/viewer: none (static html/js/css)
 
 Backend:
 
-* [ImageMagick](http://www.imagemagick.org) (`imagemagick`)
+* [ImageMagick](https://www.imagemagick.org) (`imagemagick`)
 
-* [LittleCMS2](http://www.littlecms.com/) utilities (`liblcms2-utils`)
-
-* One of the following:
-
-    * `exiftran` which is part of [fbida](http://www.kraxel.org/blog/linux/fbida/)
-
-    * `exifautotran` which is part of [libjpeg-progs](http://libjpeg.sourceforge.net/)
+* [LittleCMS2](https://littlecms.com/tags/lcms2/) utilities (`liblcms2-utils`)
 
 * One of the following:
 
-    * `7za` which is part of [7zip](http://7-zip.org/)
+    * `exiftran` which is part of [fbida](https://gitlab.com/kraxel/fbida)
+
+    * `exifautotran` which is part of [libjpeg-progs](https://libjpeg.sourceforge.net/)
+
+* One of the following:
+
+    * `7za` which is part of [7zip](https://7-zip.org/)
 	
-	* `zip`
+    * `zip`
 	
 * Perl >= 5.14 *with threading support*
 
 * The following *required* Perl module:
 
-    * `Image::ExifTool` which is part of [ExifTool](http://owl.phy.queensu.ca/~phil/exiftool/) (`libimage-exiftool-perl`)
-
-* The following *recommended* Perl module:
-
-    * `Cpanel::JSON::XS` (`libcpanel-json-xs-perl`)
+    * `Image::ExifTool` which is part of [ExifTool](https://exiftool.org/) (`libimage-exiftool-perl`)
 
 Several other tools are supported, but are only used when installed.
 Therefore it's also helpful to install:
 
-* [jpegoptim](http://www.kokkonen.net/tjko/projects.html) for JPEG size optimization
-* [pngcrush](http://pmt.sourceforge.net/pngcrush/) for PNG size optimization
+* [jpegoptim](https://github.com/tjko/jpegoptim/) for JPEG size optimization
+* [pngcrush](https://pmt.sourceforge.net/pngcrush/) for PNG size optimization
 * [facedetect](https://www.thregr.org/~wavexx/software/facedetect/) for face detection
-* [p7zip](http://www.7-zip.org/) for faster and higher-compression zip archiving
+* [p7zip](https://www.7-zip.org/) for faster and higher-compression zip archiving
 
 On Debian or Ubuntu, you can install all the required dependencies with:
 
@@ -300,7 +296,7 @@ optional dependencies:
 sudo apt-get install jpegoptim pngcrush p7zip
 ```
 
-`fcaption` is written in Python and requires PyQT4. You can install
+The caption utility `fcaption` is written in Python and requires PyQT4. You can install
 the required packages with::
 
 ```
