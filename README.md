@@ -13,7 +13,6 @@ You can see example galleries here:
 
 - https://www.thregr.org/~wavexx/software/fgallery/demo/ (fgallery version 1.x)
 - https://marabu.ch/efgallery/demo/ (efgallery)
-- https://alexschroeder.ch/gallery/ (sitelen-mute)
 
 There is no server-side processing, only static generation. The
 resulting gallery can be uploaded anywhere without any additional
@@ -70,8 +69,7 @@ That said, *efgallery* is a [pkgsrc](https://www.pkgsrc.org/)
 package, and as such can be downloaded from there.
 
 Otherwise, if you're lucky, you might be able to get pre-built
-packages for your platform for the predecessor `fgallery` or
-`sitelen-mute`.
+packages for your platform for the predecessor `fgallery`.
 
 Pre-built packages for the optional `facedetect` executable might
 also be available from your distribution; the pkgsrc version includes
@@ -331,11 +329,6 @@ sudo ln -s /usr/local/share/efgallery/efgallery /usr/local/bin
 [efgallery](https://github.com/0-ast-0/efgallery) grew out of the
 initial version "1.x" [fgallery](https://github.com/wavexx/fgallery/)
 developed by Yuri D'Elia.
-
-Version "2.x" was started by Alex Schroeder which merged many of
-my languishing pull requests to the original fgallery. He renamed it
-[sitelen-mute](https://github.com/kensanata/sitelen-mute/) and
-maintains Linux
 
 The original copyright GPLv2+ applies.
 

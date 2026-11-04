@@ -4,10 +4,6 @@
 # Maintained by Adrian Steinmann <ast@NetBSD.org>
 # BSD pkgsrc integration at https://github.com/0-ast-0/efgallery
 #
-# Also maintained for Linux by Alex Schroeder <alex@gnu.org> and
-# Petr Ruzicka <petr.ruzicka@gmail.com> (Docker integration)
-# at https://github.com/kensanata/sitelen-mute
-#
 # Forked from fgallery https://www.thregr.org/~wavexx/software/fgallery/
 # Copyright(c) 2011-2016 by wave++ "Yuri D'Elia" <wavexx@thregr.org>
 # Distributed under GPLv2+ (see COPYING) WITHOUT ANY WARRANTY.
@@ -16,7 +12,7 @@ use v5.14;
 use strict;
 use warnings;
 
-our $VERSION = "2.6";
+our $VERSION = "2.7";
 
 use locale;
 use utf8;

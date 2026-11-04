@@ -1,15 +1,29 @@
+efgallery 2.7. 2026-11-04
+-------------------------
+* Release for pkgsrc
+* Defaults require less external programs, gracefully handle that when they are missing
+
+
+efgallery 2.6. 2026-11-04
+-------------------------
+* Use absolute paths throughout
+* enforce modes of all files so that we don't inherit non-readable modes from new files
+
+
 efgallery 2.5. 2022-01-14
 -------------------------
 * Fixed reverse order bug (-r option) which was not working at all
 * Retrofitted --startslideshow option which was dormant in JS but not in Perl script
 * Added some simpe Slide Show Controls in view/index.js and updated the documentation
-* A ? Icon on th eupepr left shows a pop-up as a reference to the slide show controls
+* A ? Icon on the upper left shows a pop-up as a reference to the slide show controls
+
 
 efgallery 2.0.0. 2018-05-11
 ------------------------------
 
-* Forked and changed name from fgallery / sitelen-mute
+* Forked and changed name from fgallery
 * Update feature
+
 
 fgallery 1.8.2: 2016-05-25
 --------------------------
